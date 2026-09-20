@@ -1,0 +1,182 @@
+{
+  "config": {
+    "flow_title": "{name} ({host})",
+    "step": {
+      "user": {
+        "title": "Add an OpenHydronic board",
+        "description": "Enter the IP address or hostname of the ESP32 running the OpenHydronic firmware.",
+        "data": {
+          "host": "Host / IP",
+          "device_name": "Board name",
+          "port": "Native API port"
+        }
+      },
+      "discovery_confirm": {
+        "title": "OpenHydronic board found",
+        "description": "Do you want to add {name} ({host})? You will map the relays to zones in the next step."
+      }
+    },
+    "abort": {
+      "already_configured": "This board is already configured."
+    },
+    "error": {
+      "cannot_connect": "Could not reach the board."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "OpenHydronic",
+        "description": "Map relays to zones and tune the hydraulic protections.",
+        "menu_options": {
+          "add_zone": "Add zone",
+          "edit_zone": "Edit zone",
+          "remove_zone": "Remove zones",
+          "master": "Master manager (circulator / boiler)",
+          "timings": "Regulation and cycle timings",
+          "protections": "Protections and routines"
+        }
+      },
+      "add_zone": {
+        "title": "Add zone",
+        "description": "Bind a relay to a temperature sensor. A bypass zone needs no sensor.",
+        "data": {
+          "name": "Zone name",
+          "relay_entity": "Relay / actuator",
+          "sensor_entity": "Temperature sensor",
+          "comfort_temp": "Comfort setpoint",
+          "eco_temp": "Eco setpoint",
+          "away_temp": "Away setpoint",
+          "is_bypass": "This is the bypass loop"
+        }
+      },
+      "edit_zone": {
+        "title": "Edit zone",
+        "data": { "zone_id": "Zone" }
+      },
+      "edit_zone_details": {
+        "title": "Edit {name}",
+        "data": {
+          "name": "Zone name",
+          "relay_entity": "Relay / actuator",
+          "sensor_entity": "Temperature sensor",
+          "comfort_temp": "Comfort setpoint",
+          "eco_temp": "Eco setpoint",
+          "away_temp": "Away setpoint",
+          "is_bypass": "This is the bypass loop"
+        }
+      },
+      "remove_zone": {
+        "title": "Remove zones",
+        "data": { "zones": "Zones to remove" }
+      },
+      "master": {
+        "title": "Master manager",
+        "description": "Choose how the circulator or boiler is driven.",
+        "data": {
+          "master_mode": "Mode",
+          "master_entity": "Master entity"
+        }
+      },
+      "timings": {
+        "title": "Regulation and cycle timings",
+        "data": {
+          "hysteresis": "Hysteresis",
+          "master_start_delay": "Master start delay (thermal delay)",
+          "heat_purge_delay": "Residual heat purge delay",
+          "min_run_time": "Minimum ON time",
+          "min_off_time": "Minimum OFF time"
+        }
+      },
+      "protections": {
+        "title": "Protections and routines",
+        "data": {
+          "sensor_timeout": "Sensor watchdog timeout",
+          "air_purge_duration": "Air purge duration",
+          "anti_seize_enabled": "Weekly anti-seize routine",
+          "anti_seize_weekday": "Weekday (0 = Monday, 6 = Sunday)",
+          "anti_seize_hour": "Hour",
+          "anti_seize_minute": "Minute",
+          "anti_seize_duration": "Cycle duration"
+        }
+      }
+    },
+    "error": {
+      "relay_in_use": "That relay is already assigned to another zone.",
+      "bypass_exists": "A bypass zone is already defined.",
+      "sensor_required": "A non-bypass zone needs a temperature sensor.",
+      "master_entity_required": "Select the entity that drives the master.",
+      "master_is_zone": "The master cannot be a relay already used by a zone."
+    }
+  },
+  "selector": {
+    "master_mode": {
+      "options": {
+        "disabled": "Disabled (100% actuators)",
+        "relay": "Physical relay on a board",
+        "external": "External Home Assistant entity"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "master_state": {
+        "state": {
+          "disabled": "Disabled",
+          "off": "Off",
+          "waiting": "Waiting (thermal delay)",
+          "on": "Running",
+          "purging": "Purging residual heat"
+        }
+      },
+      "system_mode": {
+        "state": {
+          "normal": "Normal",
+          "summer": "Summer",
+          "holiday": "Holiday",
+          "air_purge": "Air purge",
+          "anti_seize": "Anti-seize"
+        }
+      }
+    }
+  },
+  "services": {
+    "air_purge": {
+      "name": "Air purge",
+      "description": "Opens every valve with the circulator running to bleed trapped air.",
+      "fields": {
+        "entry_id": { "name": "Board", "description": "Board to act on." },
+        "duration": { "name": "Duration", "description": "Purge duration in seconds." }
+      }
+    },
+    "stop_air_purge": {
+      "name": "Stop air purge",
+      "description": "Cancels a running air purge.",
+      "fields": {
+        "entry_id": { "name": "Board", "description": "Board to act on." }
+      }
+    },
+    "run_anti_seize": {
+      "name": "Run anti-seize routine",
+      "description": "Cycles every relay so actuators do not seize.",
+      "fields": {
+        "entry_id": { "name": "Board", "description": "Board to act on." },
+        "duration": { "name": "Duration", "description": "Cycle duration in seconds." }
+      }
+    },
+    "reset_metrics": {
+      "name": "Reset metrics",
+      "description": "Clears runtime and cycle counters.",
+      "fields": {
+        "entry_id": { "name": "Board", "description": "Board to act on." }
+      }
+    },
+    "emergency_stop": {
+      "name": "Emergency stop",
+      "description": "Closes every valve and stops the circulator immediately, ignoring the minimum cycle timers.",
+      "fields": {
+        "entry_id": { "name": "Board", "description": "Board to act on." }
+      }
+    }
+  }
+}

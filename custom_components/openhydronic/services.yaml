@@ -1,0 +1,84 @@
+air_purge:
+  name: Air purge
+  description: >-
+    Forces every valve open with the circulator running so trapped air can be
+    bled from the circuit. Overrides the min ON/OFF cycle guards.
+  fields:
+    entry_id:
+      name: Board
+      description: Config entry id. Omit to apply to every OpenHydronic board.
+      required: false
+      selector:
+        config_entry:
+          integration: openhydronic
+    duration:
+      name: Duration
+      description: Purge duration in seconds (default 1800).
+      required: false
+      default: 1800
+      selector:
+        number:
+          min: 60
+          max: 7200
+          step: 60
+          unit_of_measurement: s
+
+stop_air_purge:
+  name: Stop air purge
+  description: Cancels a running air purge and returns to normal regulation.
+  fields:
+    entry_id:
+      name: Board
+      required: false
+      selector:
+        config_entry:
+          integration: openhydronic
+
+run_anti_seize:
+  name: Run anti-seize routine
+  description: >-
+    Cycles every relay (zones and master) for a few minutes so the actuators and
+    the circulator do not seize during long idle periods.
+  fields:
+    entry_id:
+      name: Board
+      required: false
+      selector:
+        config_entry:
+          integration: openhydronic
+    duration:
+      name: Duration
+      description: Cycle duration in seconds (default 300).
+      required: false
+      default: 300
+      selector:
+        number:
+          min: 60
+          max: 1800
+          step: 30
+          unit_of_measurement: s
+
+reset_metrics:
+  name: Reset metrics
+  description: Clears runtime hours and cycle counters for every zone.
+  fields:
+    entry_id:
+      name: Board
+      required: false
+      selector:
+        config_entry:
+          integration: openhydronic
+
+emergency_stop:
+  name: Emergency stop
+  description: >-
+    Closes every valve and stops the circulator immediately, ignoring the
+    minimum cycle timers. Zones may reopen after the minimum OFF time.
+  fields:
+    entry_id:
+      name: Board
+      description: Config entry id. Omit to apply to every OpenHydronic board.
+      required: false
+      selector:
+        config_entry:
+          integration: openhydronic

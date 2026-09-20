@@ -1,0 +1,182 @@
+{
+  "config": {
+    "flow_title": "{name} ({host})",
+    "step": {
+      "user": {
+        "title": "Adicionar placa OpenHydronic",
+        "description": "Indique o IP ou hostname do ESP32 com o firmware OpenHydronic.",
+        "data": {
+          "host": "Host / IP",
+          "device_name": "Nome da placa",
+          "port": "Porta da API nativa"
+        }
+      },
+      "discovery_confirm": {
+        "title": "Placa OpenHydronic encontrada",
+        "description": "Quer adicionar {name} ({host})? O mapeamento dos relés para zonas é feito a seguir."
+      }
+    },
+    "abort": {
+      "already_configured": "Esta placa já está configurada."
+    },
+    "error": {
+      "cannot_connect": "Não foi possível contactar a placa."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "OpenHydronic",
+        "description": "Mapeie relés para zonas e ajuste as proteções hidráulicas.",
+        "menu_options": {
+          "add_zone": "Adicionar zona",
+          "edit_zone": "Editar zona",
+          "remove_zone": "Remover zonas",
+          "master": "Gestor Master (circulador / caldeira)",
+          "timings": "Regulação e ciclos",
+          "protections": "Proteções e rotinas"
+        }
+      },
+      "add_zone": {
+        "title": "Adicionar zona",
+        "description": "Associe um relé a um sensor de temperatura. A zona de bypass não precisa de sensor.",
+        "data": {
+          "name": "Nome da zona",
+          "relay_entity": "Relé / atuador",
+          "sensor_entity": "Sensor de temperatura",
+          "comfort_temp": "Setpoint Conforto",
+          "eco_temp": "Setpoint Eco",
+          "away_temp": "Setpoint Ausente",
+          "is_bypass": "Esta é a válvula de bypass"
+        }
+      },
+      "edit_zone": {
+        "title": "Editar zona",
+        "data": { "zone_id": "Zona" }
+      },
+      "edit_zone_details": {
+        "title": "Editar {name}",
+        "data": {
+          "name": "Nome da zona",
+          "relay_entity": "Relé / atuador",
+          "sensor_entity": "Sensor de temperatura",
+          "comfort_temp": "Setpoint Conforto",
+          "eco_temp": "Setpoint Eco",
+          "away_temp": "Setpoint Ausente",
+          "is_bypass": "Esta é a válvula de bypass"
+        }
+      },
+      "remove_zone": {
+        "title": "Remover zonas",
+        "data": { "zones": "Zonas a remover" }
+      },
+      "master": {
+        "title": "Gestor Master",
+        "description": "Escolha como o circulador ou a caldeira são comandados.",
+        "data": {
+          "master_mode": "Modo",
+          "master_entity": "Entidade Master"
+        }
+      },
+      "timings": {
+        "title": "Regulação e ciclos",
+        "data": {
+          "hysteresis": "Histerese",
+          "master_start_delay": "Atraso de arranque do Master (delay térmico)",
+          "heat_purge_delay": "Purga térmica residual",
+          "min_run_time": "Tempo mínimo ligado",
+          "min_off_time": "Tempo mínimo desligado"
+        }
+      },
+      "protections": {
+        "title": "Proteções e rotinas",
+        "data": {
+          "sensor_timeout": "Watchdog de sensores",
+          "air_purge_duration": "Duração da purga de ar",
+          "anti_seize_enabled": "Rotina anti-gripagem semanal",
+          "anti_seize_weekday": "Dia da semana (0 = segunda, 6 = domingo)",
+          "anti_seize_hour": "Hora",
+          "anti_seize_minute": "Minuto",
+          "anti_seize_duration": "Duração do ciclo"
+        }
+      }
+    },
+    "error": {
+      "relay_in_use": "Esse relé já está atribuído a outra zona.",
+      "bypass_exists": "Já existe uma zona de bypass definida.",
+      "sensor_required": "Uma zona normal precisa de um sensor de temperatura.",
+      "master_entity_required": "Selecione a entidade que comanda o Master.",
+      "master_is_zone": "O Master não pode ser um relé já usado por uma zona."
+    }
+  },
+  "selector": {
+    "master_mode": {
+      "options": {
+        "disabled": "Desativado (100% atuadores)",
+        "relay": "Relé físico de uma placa",
+        "external": "Entidade externa do Home Assistant"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "master_state": {
+        "state": {
+          "disabled": "Desativado",
+          "off": "Desligado",
+          "waiting": "A aguardar (delay térmico)",
+          "on": "Em funcionamento",
+          "purging": "Purga térmica residual"
+        }
+      },
+      "system_mode": {
+        "state": {
+          "normal": "Normal",
+          "summer": "Verão",
+          "holiday": "Férias",
+          "air_purge": "Purga de ar",
+          "anti_seize": "Anti-gripagem"
+        }
+      }
+    }
+  },
+  "services": {
+    "air_purge": {
+      "name": "Purga de ar",
+      "description": "Abre todas as válvulas com o circulador ligado para expulsar o ar do circuito.",
+      "fields": {
+        "entry_id": { "name": "Placa", "description": "Placa a comandar." },
+        "duration": { "name": "Duração", "description": "Duração da purga em segundos." }
+      }
+    },
+    "stop_air_purge": {
+      "name": "Parar purga de ar",
+      "description": "Cancela uma purga em curso.",
+      "fields": {
+        "entry_id": { "name": "Placa", "description": "Placa a comandar." }
+      }
+    },
+    "run_anti_seize": {
+      "name": "Executar anti-gripagem",
+      "description": "Cicla todos os relés para evitar gripagem dos atuadores.",
+      "fields": {
+        "entry_id": { "name": "Placa", "description": "Placa a comandar." },
+        "duration": { "name": "Duração", "description": "Duração do ciclo em segundos." }
+      }
+    },
+    "reset_metrics": {
+      "name": "Repor métricas",
+      "description": "Limpa os contadores de horas e de ciclos.",
+      "fields": {
+        "entry_id": { "name": "Placa", "description": "Placa a comandar." }
+      }
+    },
+    "emergency_stop": {
+      "name": "Paragem de emergência",
+      "description": "Fecha todas as válvulas e para o circulador de imediato, ignorando os tempos mínimos de ciclo.",
+      "fields": {
+        "entry_id": { "name": "Placa", "description": "Placa a comandar." }
+      }
+    }
+  }
+}
