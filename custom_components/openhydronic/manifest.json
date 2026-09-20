@@ -1,16 +1,26 @@
 {
   "domain": "openhydronic",
   "name": "OpenHydronic",
-  "codeowners": ["@davdlic"],
+  "after_dependencies": [
+    "esphome",
+    "zeroconf"
+  ],
+  "codeowners": [
+    "@davdlic"
+  ],
   "config_flow": true,
-  "dependencies": ["http", "frontend", "persistent_notification"],
-  "after_dependencies": ["esphome", "zeroconf"],
+  "dependencies": [
+    "http",
+    "frontend",
+    "persistent_notification"
+  ],
   "documentation": "https://github.com/davdlic/OpenHydronic-HA",
   "integration_type": "hub",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/davdlic/OpenHydronic-HA/issues",
-  "loggers": ["custom_components.openhydronic"],
-  "quality_scale": "silver",
+  "loggers": [
+    "custom_components.openhydronic"
+  ],
   "requirements": [],
   "version": "1.0.0",
   "zeroconf": [

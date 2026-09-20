@@ -2,6 +2,7 @@ name: Validate
 
 on:
   push:
+    branches: [main]
   pull_request:
   schedule:
     - cron: "0 4 * * 1"
@@ -23,6 +24,8 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
+          # Re-enable once openhydronic is merged into home-assistant/brands.
+          ignore: "brands"
 
   card:
     name: Card build
