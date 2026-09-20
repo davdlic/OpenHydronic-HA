@@ -26,5 +26,6 @@ First public release.
   the board itself when it exposes the firmware actions.
 - Runtime hours and cycle counters per zone.
 - Bundled Lovelace card, registered automatically, English and Portuguese.
+- Brand icon and logo served from the integration itself (HA 2026.3 and newer).
 
 [1.0.0]: https://github.com/davdlic/OpenHydronic-HA/releases/tag/v1.0.0

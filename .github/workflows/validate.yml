@@ -24,8 +24,6 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          # Re-enable once openhydronic is merged into home-assistant/brands.
-          ignore: "brands"
 
   card:
     name: Card build
