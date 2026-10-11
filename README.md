@@ -248,8 +248,10 @@ sensors ──► hysteresis ──► cycle guards ──► zone relays
 1. **Hysteresis** — a zone calls for heat below `setpoint - 0.3 °C` and releases above
    `setpoint + 0.3 °C`.
 2. **Cycle guards** — a relay that just turned on stays on for 10 minutes, one that just turned off
-   stays off for 10 minutes. A sensor fault **breaks** the lock to turn a zone off, never to turn
-   it on: safety always wins.
+   stays off for 10 minutes. This is proportional, not a fixed lockout: a zone that has been
+   heating for an hour closes the moment it is asked to, because the minimum was met long ago.
+   Only a change within the window waits, and the card counts the remaining minutes down. A sensor
+   fault **breaks** the lock to turn a zone off, never to turn it on: safety always wins.
 3. **Master** — on the first request it waits 3 minutes, the time the PTC heads need to open,
    before starting the circulator. After the last one it keeps running for 2 minutes to dissipate
    residual heat.

@@ -4,6 +4,13 @@ All notable changes to this integration are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Documentation
+
+- Clarified that the cycle guards are proportional to the time since the last
+  change, not a fixed lockout.
+
 ## [1.0.0] - 2026-09-15
 
 First public release.
