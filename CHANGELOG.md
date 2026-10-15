@@ -4,6 +4,21 @@ All notable changes to this integration are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [1.0.2] - 2026-10-15
+
+### Fixed
+
+- The circulator could run against a fully closed circuit. A zone the cycle
+  guard was still holding back counted as heat demand, so the master started
+  while every valve stayed shut. Demand now counts a zone only while it is both
+  calling for heat and open, which also stops a valve held open by the minimum
+  ON time from drawing heat to a room that is already satisfied.
+
+### Changed
+
+- Minimum OFF time defaults to 5 min instead of 10, enough to cover the
+  actuator closing.
+
 ## [1.0.1] - 2026-10-15
 
 ### Added
@@ -46,5 +61,6 @@ First public release.
 - Bundled Lovelace card, registered automatically, English and Portuguese.
 - Brand icon and logo served from the integration itself (HA 2026.3 and newer).
 
+[1.0.2]: https://github.com/davdlic/OpenHydronic-HA/releases/tag/v1.0.2
 [1.0.1]: https://github.com/davdlic/OpenHydronic-HA/releases/tag/v1.0.1
 [1.0.0]: https://github.com/davdlic/OpenHydronic-HA/releases/tag/v1.0.0

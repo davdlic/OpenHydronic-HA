@@ -133,7 +133,7 @@ Everything is set in the UI. The defaults mirror the firmware:
 | Master start delay | 180 s | Time for the PTC heads to open before the pump starts |
 | Residual heat purge | 120 s | Pump keeps running after the last zone closes |
 | Minimum ON time | 600 s | Per relay |
-| Minimum OFF time | 600 s | Per relay |
+| Minimum OFF time | 300 s | Per relay |
 | Sensor watchdog | 7200 s | Stale sensor switches its zone off |
 | Air purge duration | 1800 s | All valves open, pump running |
 | Anti-seize | Sunday 10:00, 300 s | Weekly exercise of every actuator |
@@ -248,13 +248,16 @@ sensors ──► hysteresis ──► cycle guards ──► zone relays
 1. **Hysteresis** — a zone calls for heat below `setpoint - 0.3 °C` and releases above
    `setpoint + 0.3 °C`.
 2. **Cycle guards** — a relay that just turned on stays on for 10 minutes, one that just turned off
-   stays off for 10 minutes. This is proportional, not a fixed lockout: a zone that has been
-   heating for an hour closes the moment it is asked to, because the minimum was met long ago.
+   stays off for 5 minutes, long enough for the head to finish closing. This is proportional, not
+   a fixed lockout: a zone that has been heating for an hour closes the moment it is asked to,
+   because the minimum was met long ago.
    Only a change within the window waits, and the card counts the remaining minutes down. A sensor
    fault **breaks** the lock to turn a zone off, never to turn it on: safety always wins.
-3. **Master** — on the first request it waits 3 minutes, the time the PTC heads need to open,
-   before starting the circulator. After the last one it keeps running for 2 minutes to dissipate
-   residual heat.
+3. **Master** — a zone counts as demand only while it is both calling for heat and open, so a
+   request the guard is holding back never starts the pump against a closed circuit, and a valve
+   the minimum ON time keeps open no longer draws heat to a satisfied room. From the first zone
+   opening it waits 3 minutes, the time the PTC heads need to open, before starting the
+   circulator. After the last one it keeps running for 2 minutes to dissipate residual heat.
 4. **Bypass** — if the circulator is running and no zone is open, the zone marked as bypass opens
    to give the pump somewhere to push.
 5. **Watchdog** — a sensor silent for more than 2 hours switches its zone off and notifies.

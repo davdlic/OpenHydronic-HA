@@ -435,7 +435,7 @@ class OpenHydronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._accumulate_metrics(now)
         demand = self._evaluate_demand()
         outputs = self._apply_cycle_guards(demand, now)
-        master_output = self._resolve_master(demand, now)
+        master_output = self._resolve_master(self._flowing_demand(demand, outputs), now)
         outputs = self._apply_bypass(outputs, master_output)
 
         await self._commit_outputs(outputs, master_output, now)
@@ -565,6 +565,21 @@ class OpenHydronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 outputs[zone_id] = wanted
 
         return outputs
+
+    @staticmethod
+    def _flowing_demand(
+        demand: dict[str, bool], outputs: dict[str, bool]
+    ) -> dict[str, bool]:
+        """Demand the circulator may act on: wanted and open at the same time.
+
+        A zone the guard holds closed would run the pump against a shut
+        circuit; one held open while closing would keep the heat coming to a
+        room that no longer asks for it.
+        """
+        return {
+            zone_id: demand.get(zone_id, False) and open_now
+            for zone_id, open_now in outputs.items()
+        }
 
     def _resolve_master(self, demand: dict[str, bool], now: float) -> bool:
         """Thermal delay on start, residual heat purge on stop."""

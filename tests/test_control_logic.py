@@ -210,6 +210,42 @@ def test_master_stays_disabled_without_an_entity():
 
 
 # ---------------------------------------------------------------------------
+# What reaches the circulator
+# ---------------------------------------------------------------------------
+def test_a_zone_locked_out_never_starts_the_pump():
+    # Regression: a request the guard was still holding back counted as demand,
+    # so the pump started against a fully closed circuit.
+    now = time.monotonic()
+    zone = make_zone(output=False, last_switch_at=now - 60)
+    coordinator = make_coordinator([zone])
+
+    outputs = coordinator._apply_cycle_guards({"z1": True}, now)
+
+    assert coordinator._flowing_demand({"z1": True}, outputs) == {"z1": False}
+
+
+def test_a_zone_held_open_while_closing_stops_asking_for_heat():
+    now = time.monotonic()
+    zone = make_zone(output=True, last_switch_at=now - 60)
+    coordinator = make_coordinator([zone])
+
+    outputs = coordinator._apply_cycle_guards({"z1": False}, now)
+
+    assert outputs == {"z1": True}  # min-RUN keeps the valve open
+    assert coordinator._flowing_demand({"z1": False}, outputs) == {"z1": False}
+
+
+def test_an_open_zone_that_wants_heat_drives_the_pump():
+    now = time.monotonic()
+    zone = make_zone(output=True, last_switch_at=now - 3600)
+    coordinator = make_coordinator([zone])
+
+    outputs = coordinator._apply_cycle_guards({"z1": True}, now)
+
+    assert coordinator._flowing_demand({"z1": True}, outputs) == {"z1": True}
+
+
+# ---------------------------------------------------------------------------
 # Bypass
 # ---------------------------------------------------------------------------
 def test_bypass_opens_when_the_pump_runs_against_a_closed_circuit():
