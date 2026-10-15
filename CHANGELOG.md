@@ -4,7 +4,18 @@ All notable changes to this integration are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.1] - 2026-10-15
+
+### Added
+
+- Tagged releases are published automatically, after the bundled card is
+  rebuilt from source and checked against the committed one.
+
+### Fixed
+
+- Manifest keys sorted and `quality_scale` dropped, so hassfest passes.
+- Brand assets are served by the integration itself instead of waiting on a
+  pull request to the Home Assistant brands repository.
 
 ### Documentation
 
@@ -35,4 +46,5 @@ First public release.
 - Bundled Lovelace card, registered automatically, English and Portuguese.
 - Brand icon and logo served from the integration itself (HA 2026.3 and newer).
 
+[1.0.1]: https://github.com/davdlic/OpenHydronic-HA/releases/tag/v1.0.1
 [1.0.0]: https://github.com/davdlic/OpenHydronic-HA/releases/tag/v1.0.0
