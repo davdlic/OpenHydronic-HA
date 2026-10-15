@@ -1,0 +1,64 @@
+# OpenHydronic-HA - Publish a GitHub release on every v*.*.* tag
+# Copyright (C) 2026 David Lopes (https://github.com/davdlic)
+# Licensed under the GNU General Public License v3.0
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.0.1)'
+        required: true
+
+jobs:
+  release:
+    name: Validate and publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Check the committed card matches its source
+        run: |
+          npm ci
+          npm run build
+          git diff --exit-code custom_components/openhydronic/www/openhydronic-card.js
+
+      - name: Check the manifest version matches the tag
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          MANIFEST=$(python -c "import json;print(json.load(open('custom_components/openhydronic/manifest.json'))['version'])")
+          if [ "$MANIFEST" != "${TAG#v}" ]; then
+            echo "manifest.json says $MANIFEST but the tag is $TAG"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+        id: check
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.check.outputs.tag }}
+          name: OpenHydronic-HA ${{ steps.check.outputs.tag }}
+          generate_release_notes: true
+          body: |
+            Install through HACS as a custom repository:
+            `https://github.com/davdlic/OpenHydronic-HA`, category **Integration**.
+
+            Needs a board running the
+            [OpenHydronic firmware](https://github.com/davdlic/OpenHydronic), or any switchable
+            entity plus a temperature sensor per zone.
