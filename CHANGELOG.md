@@ -4,6 +4,14 @@ All notable changes to this integration are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- The device page reported firmware 1.0.0 on every version: `INTEGRATION_VERSION`
+  was a constant of its own and never followed `manifest.json`. The release
+  workflow now refuses to publish if the two disagree.
+
 ## [1.0.2] - 2026-10-15
 
 ### Fixed

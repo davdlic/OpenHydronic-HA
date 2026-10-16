@@ -18,7 +18,8 @@ from typing import Final
 DOMAIN: Final = "openhydronic"
 MANUFACTURER: Final = "OpenHydronic"
 MODEL: Final = "ESP32 Hydronic Controller"
-INTEGRATION_VERSION: Final = "1.0.0"
+# Kept in step with manifest.json by the release workflow.
+INTEGRATION_VERSION: Final = "1.0.2"
 
 PLATFORMS: Final[list[str]] = ["climate", "sensor", "switch"]
 

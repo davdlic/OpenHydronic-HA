@@ -46,6 +46,12 @@ jobs:
             echo "manifest.json says $MANIFEST but the tag is $TAG"
             exit 1
           fi
+          # The device page shows this one, so it must not drift.
+          CONST=$(python -c "import re;print(re.search(r'INTEGRATION_VERSION: Final = \"([^\"]+)\"', open('custom_components/openhydronic/const.py').read()).group(1))")
+          if [ "$CONST" != "$MANIFEST" ]; then
+            echo "const.py says $CONST but manifest.json says $MANIFEST"
+            exit 1
+          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
         id: check
 
