@@ -19,7 +19,7 @@ DOMAIN: Final = "openhydronic"
 MANUFACTURER: Final = "OpenHydronic"
 MODEL: Final = "ESP32 Hydronic Controller"
 # Kept in step with manifest.json by the release workflow.
-INTEGRATION_VERSION: Final = "1.0.2"
+INTEGRATION_VERSION: Final = "1.1.0"
 
 PLATFORMS: Final[list[str]] = ["climate", "sensor", "switch"]
 
@@ -60,6 +60,8 @@ CONF_AWAY_TEMP: Final = "away_temp"
 
 CONF_MASTER_MODE: Final = "master_mode"
 CONF_MASTER_ENTITY: Final = "master_entity"
+# Only the zones form asks this: what switches the boiler or circulator.
+CONF_MASTER_CHOICE: Final = "master_choice"
 
 CONF_HYSTERESIS: Final = "hysteresis"
 CONF_MASTER_START_DELAY: Final = "master_start_delay"
@@ -82,6 +84,11 @@ MASTER_DISABLED: Final = "disabled"
 MASTER_RELAY: Final = "relay"
 MASTER_EXTERNAL: Final = "external"
 MASTER_MODES: Final = [MASTER_DISABLED, MASTER_RELAY, MASTER_EXTERNAL]
+
+# Answers to that question. "board" turns on the firmware's own master.
+MASTER_CHOICE_NONE: Final = "none"
+MASTER_CHOICE_BOARD: Final = "board"
+MASTER_CHOICE_ENTITY: Final = "entity"
 
 # Master state machine (exposed as a sensor + consumed by the Lovelace card)
 MASTER_STATE_OFF: Final = "off"

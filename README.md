@@ -60,6 +60,7 @@ boiler or circulator, and watches the sensors for silence.
 |---|---|
 | Home Assistant | 2024.10 or newer |
 | Board | [OpenHydronic](https://github.com/davdlic/OpenHydronic) firmware, or any `switch`-like entity |
+| Published firmware | Home Assistant 2026.8 or newer, to adopt it in ESPHome without typing a key |
 | Sensors | One temperature sensor per zone (`sensor`, `number` or `input_number`) |
 | Relay domains | `switch`, `input_boolean`, `light`, `fan`, `valve` |
 | Installation | HACS custom repository, or manual copy |
@@ -68,13 +69,15 @@ boiler or circulator, and watches the sensors for silence.
 
 ## Installation
 
-### 1. Flash the board
+### 1. Flash the board and add it to ESPHome
 
-Follow the [OpenHydronic](https://github.com/davdlic/OpenHydronic) README. When it is done you
-should have an ESPHome device in Home Assistant with `Zone 1` … `Zone 8` switches.
+Follow the [OpenHydronic](https://github.com/davdlic/OpenHydronic) README. With the published
+firmware, flash it, then in **Settings → Devices & services** add the **ESPHome** card for the
+board and press Submit: there is no key to type. When it is done you have an ESPHome device with
+`Zone 1` … `Zone 8` switches.
 
 The official ESPHome integration is the transport; this custom component is the decision layer on
-top of it.
+top of it. It never talks to the board itself, only to the entities ESPHome made.
 
 ### 2. Install the integration
 
@@ -92,17 +95,49 @@ The Lovelace card is served and loaded by the integration itself from
 `/openhydronic_frontend/openhydronic-card.js`. Nothing to add under *Settings → Dashboards →
 Resources*.
 
-### 3. Add the board
+### 3. Add the board and map its zones
 
-A board on the network shows up by itself under **Settings → Devices & Services** as a discovery.
-Otherwise use **Add integration → OpenHydronic** and type its IP.
+The board shows up by itself under **Settings → Devices & services** as an **OpenHydronic**
+discovery, next to the ESPHome one. Add it after ESPHome, and the next screen already lists every
+relay the board has, one section each:
 
-### 4. Map the zones
+- the **room name** (left empty it is called `Zone N`)
+- the **temperature sensor** of that room
+
+Fill in only the relays that heat a room and leave the others empty: a relay with no sensor does not
+become a zone, because a zone nobody can measure is switched off by design. Have your room sensors
+in Home Assistant first.
+
+The same screen asks what switches your **boiler or circulator**, and nothing is assumed:
+
+| Answer | What happens |
+|---|---|
+| **None** (default) | Nothing is driven. Pick this if the board does not control it, or if nothing does. |
+| **The board switches it** | Turns on the board's own *Master Local Mode*. The board then runs the master on its reserved channel. Only offered when the board has that switch. |
+| **Another switch in Home Assistant** | Home Assistant drives that entity, a Shelly say, or a relay of the same board. |
+
+Which answer fits your wiring, in the firmware's own terms:
+
+| Wiring | Answer |
+|---|---|
+| Mode A, all eight relays are zones and the boiler is switched elsewhere | **Another switch in Home Assistant** |
+| Mode B, seven zones and the board's relay 8 switches the boiler | **The board switches it**, and leave relay 8 without a sensor |
+| Mode C, six zones, master and a bypass valve | **The board switches it**, then add the bypass valve as a zone in Configure |
+
+Nothing tells you afterwards which answer you gave, so if the boiler never starts check
+*Master Local Mode* on the board's device page. A factory reset of the board turns it off again.
+
+If the board is not in ESPHome yet when you add it, you are told so and can check again or add it
+without zones. A host you type in by hand that has no relays to read, a Shelly, a Zigbee relay or
+another ESPHome board, skips all of this and is mapped under Configure as before.
+
+### 4. Change the zones later
 
 **Devices & Services → OpenHydronic → Configure**:
 
 | Menu | What it sets |
 |---|---|
+| **Add the board's relays as zones** | The same one-screen mapping, for the relays no zone uses yet. Offered only while there are some |
 | **Add zone** | Name, relay, temperature sensor, Comfort/Eco/Away setpoints, bypass flag |
 | **Master manager** | Disabled, physical relay, or external entity |
 | **Regulation and cycle timings** | Hysteresis, thermal delay, residual purge, min ON, min OFF |
@@ -279,6 +314,10 @@ state nor locks the zones out.
 | The card does not appear | Browser cache after an update | Hard refresh, Ctrl+Shift+R. |
 | The card shows no zones | No zones mapped yet | Options → Add zone. |
 | The board was added twice | Added manually and then discovered | Remove one entry; newer versions merge them automatically. |
+| A repair says the board has relays but no zones | The board was added without zones | Configure → Add the board's relays as zones. |
+| The zones screen says the board is not in ESPHome | Home Assistant gets the relays from the ESPHome integration | Add the board there first, then press Check again. |
+| ESPHome asks for an encryption key for the published firmware | Home Assistant is older than 2026.8 and cannot set the key itself | Update Home Assistant, or build the firmware with your own key. |
+| The boiler stopped after the board was factory reset | *Master Local Mode* goes back to off | Switch it on again on the board's device page. |
 
 Enable debug logging:
 

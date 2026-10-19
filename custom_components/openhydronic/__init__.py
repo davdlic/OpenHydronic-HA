@@ -10,10 +10,11 @@ from pathlib import Path
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import Event, HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
+from .board import async_get_board, free_channels, taken_relays
 from .const import (
     ATTR_DURATION,
     ATTR_ENTRY_ID,
@@ -21,6 +22,8 @@ from .const import (
     CONF_DEVICE_NAME,
     CONF_HOST,
     CONF_MAC,
+    CONF_NODE_NAME,
+    CONF_ZONES,
     DOMAIN,
     INTEGRATION_VERSION,
     MANUFACTURER,
@@ -38,6 +41,8 @@ from .coordinator import OpenHydronicCoordinator
 _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+ISSUE_ZONES_UNMAPPED = "zones_unmapped"
 
 SERVICE_SCHEMA = vol.Schema(
     {
@@ -66,13 +71,87 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     _async_register_services(hass)
+    try:
+        _async_watch_unmapped(hass, entry)
+    except Exception:  # noqa: BLE001 - a reminder must never stop a board from loading
+        _LOGGER.debug("Could not watch the relays of %s", entry.title, exc_info=True)
     return True
+
+
+@callback
+def _async_check_unmapped(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Raise a repair while the board has relays and none of them is a zone.
+
+    Only an entry with no zones at all is nagged: one that maps some relays has
+    probably left the others for the pump or the spare on purpose.
+    """
+    from homeassistant.helpers import issue_registry as ir
+
+    issue_id = f"{ISSUE_ZONES_UNMAPPED}_{entry.entry_id}"
+    free: list[int] = []
+    if not entry.options.get(CONF_ZONES):
+        try:
+            board = async_get_board(
+                hass,
+                mac=entry.data.get(CONF_MAC),
+                host=entry.data.get(CONF_HOST),
+                node_name=entry.data.get(CONF_NODE_NAME),
+            )
+            if board is not None:
+                free = free_channels(board, taken_relays(hass.config_entries.async_entries(DOMAIN)))
+        except Exception:  # noqa: BLE001 - a hint must never stop a board from loading
+            _LOGGER.debug("Could not read the relays of %s", entry.title, exc_info=True)
+            return
+
+    if not free:
+        ir.async_delete_issue(hass, DOMAIN, issue_id)
+        return
+
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_ZONES_UNMAPPED,
+        translation_placeholders={"name": entry.title},
+    )
+
+
+@callback
+def _async_watch_unmapped(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Check now, and again whenever ESPHome registers a new entity."""
+    from homeassistant.helpers import entity_registry as er
+
+    _async_check_unmapped(hass, entry)
+    if entry.options.get(CONF_ZONES):
+        return
+
+    @callback
+    def _registered(event: Event) -> None:
+        if event.data.get("action") == "create":
+            _async_check_unmapped(hass, entry)
+
+    entry.async_on_unload(
+        hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, _registered)
+    )
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Drop the repair with the entry it belongs to."""
+    from homeassistant.helpers import issue_registry as ir
+
+    ir.async_delete_issue(hass, DOMAIN, f"{ISSUE_ZONES_UNMAPPED}_{entry.entry_id}")
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
+        # Nothing watches while it is off; a reload raises it again if needed.
+        from homeassistant.helpers import issue_registry as ir
+
+        ir.async_delete_issue(hass, DOMAIN, f"{ISSUE_ZONES_UNMAPPED}_{entry.entry_id}")
         coordinator: OpenHydronicCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
         await coordinator.async_shutdown_coordinator()
         if not hass.data[DOMAIN]:

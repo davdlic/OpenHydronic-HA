@@ -9,6 +9,7 @@ by hand works just as well, since only entity ids are needed afterwards.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Any
 
@@ -20,7 +21,9 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import AbortFlow
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.data_entry_flow import AbortFlow, section
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
 
 try:  # Home Assistant >= 2025.2
@@ -28,6 +31,15 @@ try:  # Home Assistant >= 2025.2
 except ImportError:  # pragma: no cover - older cores
     from homeassistant.components.zeroconf import ZeroconfServiceInfo  # type: ignore
 
+from .board import (
+    Board,
+    async_get_board,
+    free_channels,
+    taken_relays,
+    unfinished_sections,
+    zone_section_key,
+    zones_from_form,
+)
 from .const import (
     CONF_AIR_PURGE_DURATION,
     CONF_ANTI_SEIZE_DURATION,
@@ -45,6 +57,7 @@ from .const import (
     CONF_HYSTERESIS,
     CONF_IS_BYPASS,
     CONF_MAC,
+    CONF_MASTER_CHOICE,
     CONF_MASTER_ENTITY,
     CONF_MASTER_MODE,
     CONF_MASTER_START_DELAY,
@@ -73,11 +86,17 @@ from .const import (
     DEFAULT_MIN_RUN_TIME,
     DEFAULT_SENSOR_TIMEOUT,
     DOMAIN,
+    MASTER_CHOICE_BOARD,
+    MASTER_CHOICE_ENTITY,
+    MASTER_CHOICE_NONE,
     MASTER_DISABLED,
     MASTER_EXTERNAL,
     MASTER_MODES,
     MASTER_RELAY,
 )
+
+# How long to wait for ESPHome to list a board's entities after it is adopted.
+WAIT_POLLS = 30
 
 SWITCHABLE_DOMAINS = ["switch", "input_boolean", "light", "fan", "valve"]
 SENSOR_DOMAINS = ["sensor", "number", "input_number"]
@@ -162,6 +181,72 @@ def _zone_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     )
 
 
+def _new_zone_id() -> str:
+    return uuid.uuid4().hex[:8]
+
+
+def _zones_schema(
+    board: Board,
+    *,
+    channels: list[int] | None = None,
+    with_master: bool = False,
+    previous: dict[str, Any] | None = None,
+) -> vol.Schema:
+    """One section per relay of the board: a room name and its temperature sensor.
+
+    Nothing is required: a relay that heats no room is simply left empty.
+    `previous` is what the user last submitted, put back after an error. Home
+    Assistant's own helper does not reach inside sections before 2024.11.
+    """
+    previous = previous or {}
+    fields: dict[Any, Any] = {}
+    for channel in sorted(board.zones if channels is None else channels):
+        before = previous.get(zone_section_key(channel)) or {}
+        fields[vol.Optional(zone_section_key(channel))] = section(
+            vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_ZONE_NAME,
+                        description={"suggested_value": before.get(CONF_ZONE_NAME)},
+                    ): str,
+                    vol.Optional(
+                        CONF_SENSOR_ENTITY,
+                        description={"suggested_value": before.get(CONF_SENSOR_ENTITY)},
+                    ): _sensor_selector(),
+                }
+            ),
+            {"collapsed": False},
+        )
+
+    if with_master:
+        choices = [MASTER_CHOICE_NONE]
+        if board.master_local_mode:
+            choices.append(MASTER_CHOICE_BOARD)
+        choices.append(MASTER_CHOICE_ENTITY)
+        fields[
+            vol.Required(
+                CONF_MASTER_CHOICE,
+                default=previous.get(CONF_MASTER_CHOICE, MASTER_CHOICE_NONE),
+            )
+        ] = (
+            selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=choices,
+                    translation_key="master_choice",
+                    mode=selector.SelectSelectorMode.LIST,
+                )
+            )
+        )
+        fields[
+            vol.Optional(
+                CONF_MASTER_ENTITY,
+                description={"suggested_value": previous.get(CONF_MASTER_ENTITY)},
+            )
+        ] = _relay_selector()
+
+    return vol.Schema(fields)
+
+
 class OpenHydronicConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle discovery and manual setup of an OpenHydronic board."""
 
@@ -169,6 +254,37 @@ class OpenHydronicConfigFlow(ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         self._discovered: dict[str, Any] = {}
+        self._manual = False
+        self._board: Board | None = None
+        self._wait_task: asyncio.Task[None] | None = None
+        self._waited = False
+
+    @callback
+    def async_remove(self) -> None:
+        if self._wait_task is not None:
+            self._wait_task.cancel()
+
+    def _lookup_board(self) -> Board | None:
+        """The board as the ESPHome integration knows it, read fresh every time."""
+        return async_get_board(
+            self.hass,
+            mac=self._discovered.get(CONF_MAC),
+            host=self._discovered.get(CONF_HOST),
+            node_name=self._discovered.get(CONF_NODE_NAME),
+        )
+
+    def _placeholders(self) -> dict[str, str]:
+        return {
+            "name": self._discovered.get(CONF_DEVICE_NAME) or "OpenHydronic",
+            "host": self._discovered.get(CONF_HOST) or "",
+        }
+
+    def _create_entry(self, options: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return self.async_create_entry(
+            title=self._discovered.get(CONF_DEVICE_NAME) or "OpenHydronic",
+            data=self._discovered,
+            options=options or _default_options(),
+        )
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -180,18 +296,26 @@ class OpenHydronicConfigFlow(ConfigFlow, domain=DOMAIN):
             # A discovered board is keyed by MAC, so also match on the host to
             # avoid adding the same board twice.
             self._abort_if_host_configured(host)
-            await self.async_set_unique_id(host.lower())
+            self._discovered = {
+                CONF_HOST: host,
+                CONF_PORT: user_input.get(CONF_PORT, 6053),
+                CONF_DEVICE_NAME: user_input.get(CONF_DEVICE_NAME) or "OpenHydronic",
+                CONF_NODE_NAME: _node_name_from_host(host),
+            }
+            self._manual = True
+
+            # An adopted board is keyed by its MAC like a discovered one, so a
+            # later discovery completes this entry instead of duplicating it.
+            unique_id = host.lower()
+            board = self._lookup_board()
+            if board is not None and board.mac:
+                unique_id = board.mac.replace(":", "")
+                self._discovered[CONF_MAC] = unique_id
+            # A discovery card for the same board may still be open: this entry
+            # replaces it instead of being refused because of it.
+            await self.async_set_unique_id(unique_id, raise_on_progress=False)
             self._abort_if_unique_id_configured(updates={CONF_HOST: host})
-            return self.async_create_entry(
-                title=user_input.get(CONF_DEVICE_NAME) or "OpenHydronic",
-                data={
-                    CONF_HOST: host,
-                    CONF_PORT: user_input.get(CONF_PORT, 6053),
-                    CONF_DEVICE_NAME: user_input.get(CONF_DEVICE_NAME, "OpenHydronic"),
-                    CONF_NODE_NAME: _node_name_from_host(host),
-                },
-                options=_default_options(),
-            )
+            return await self.async_step_resolve()
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_SCHEMA, errors=errors
@@ -253,27 +377,183 @@ class OpenHydronicConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_discovery_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Ask the user to confirm adding the discovered board."""
+        """Ask the user to confirm adding the discovered board.
+
+        The board is only looked up once they confirm, so it does not matter
+        whether the ESPHome card was handled before or after this one.
+        """
         if user_input is not None:
-            return self.async_create_entry(
-                title=self._discovered[CONF_DEVICE_NAME],
-                data=self._discovered,
-                options=_default_options(),
-            )
+            self._abort_if_host_configured(self._discovered[CONF_HOST])
+            return await self.async_step_resolve()
 
         self._set_confirm_only()
         return self.async_show_form(
             step_id="discovery_confirm",
+            description_placeholders=self._placeholders(),
+        )
+
+    async def async_step_resolve(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Look the board up in the ESPHome integration and branch on the answer."""
+        board = self._lookup_board()
+
+        if self._manual and (board is None or not board.zones):
+            # Typed by hand and nothing to read: a Shelly, a Zigbee relay, or
+            # any ESPHome board that is not this one.
+            return self._create_entry()
+
+        if board is None:
+            return await self.async_step_not_adopted()
+
+        if not board.zones:
+            # Adopted, but ESPHome has not listed its entities yet.
+            if not self._waited:
+                return await self.async_step_wait_board()
+            return await self.async_step_no_zones()
+
+        self._board = board
+        return await self.async_step_zones()
+
+    # A menu's step_id is also a step method: Home Assistant calls it again
+    # whenever the dialog is reopened.
+    async def async_step_not_adopted(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        return self.async_show_menu(
+            step_id="not_adopted",
+            menu_options=["retry", "skip"],
+            description_placeholders=self._placeholders(),
+        )
+
+    async def async_step_no_zones(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        return self.async_show_menu(
+            step_id="no_zones",
+            menu_options=["retry", "skip"],
+            description_placeholders=self._placeholders(),
+        )
+
+    async def _async_wait_for_zones(self) -> None:
+        """Give ESPHome time to register the relays after the board is adopted."""
+        for _ in range(WAIT_POLLS):
+            board = self._lookup_board()
+            if board is not None and board.zones:
+                return
+            await asyncio.sleep(1)
+
+    async def async_step_wait_board(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if self._wait_task is None:
+            self._wait_task = self.hass.async_create_task(self._async_wait_for_zones())
+
+        if not self._wait_task.done():
+            return self.async_show_progress(
+                step_id="wait_board",
+                progress_action="wait_board",
+                progress_task=self._wait_task,
+                description_placeholders=self._placeholders(),
+            )
+
+        self._wait_task = None
+        self._waited = True
+        return self.async_show_progress_done(next_step_id="resolve")
+
+    async def async_step_retry(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        self._waited = False
+        return await self.async_step_resolve()
+
+    async def async_step_skip(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Add the board with no zones; they can be mapped later in Configure."""
+        return self._create_entry()
+
+    async def async_step_zones(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """One form for every relay of the board, and what drives the boiler."""
+        board = self._board
+        if board is None:
+            return await self.async_step_resolve()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            # The form may have sat open while the board changed.
+            fresh = self._lookup_board()
+            if fresh is None or not fresh.zones:
+                return await self.async_step_resolve()
+            self._board = board = fresh
+            outcome = await self._async_submit_zones(board, user_input)
+            if isinstance(outcome, str):
+                errors["base"] = outcome
+            else:
+                return outcome
+
+        return self.async_show_form(
+            step_id="zones",
+            data_schema=_zones_schema(board, with_master=True, previous=user_input),
+            errors=errors,
             description_placeholders={
-                "name": self._discovered[CONF_DEVICE_NAME],
-                "host": self._discovered[CONF_HOST],
+                **self._placeholders(),
+                "count": str(len(board.zones)),
             },
         )
+
+    async def _async_submit_zones(
+        self, board: Board, user_input: dict[str, Any]
+    ) -> ConfigFlowResult | str:
+        """The created entry, or the key of the error to show."""
+        if unfinished_sections(board, user_input):
+            return "sensor_required"
+        zones = zones_from_form(board, user_input, new_id=_new_zone_id)
+        taken = taken_relays(self._async_current_entries())
+        if any(zone[CONF_RELAY_ENTITY] in taken for zone in zones):
+            return "relay_in_use"
+
+        options = {**_default_options(), CONF_ZONES: zones}
+        choice = user_input.get(CONF_MASTER_CHOICE, MASTER_CHOICE_NONE)
+        entity = user_input.get(CONF_MASTER_ENTITY)
+        if choice == MASTER_CHOICE_NONE and entity:
+            choice = MASTER_CHOICE_ENTITY  # a switch picked says what was meant
+
+        if choice == MASTER_CHOICE_ENTITY:
+            if not entity:
+                return "master_entity_required"
+            if entity in {zone[CONF_RELAY_ENTITY] for zone in zones}:
+                return "master_is_zone"
+            options[CONF_MASTER_MODE] = (
+                MASTER_RELAY if entity in board.zones.values() else MASTER_EXTERNAL
+            )
+            options[CONF_MASTER_ENTITY] = entity
+        elif choice == MASTER_CHOICE_BOARD:
+            if not board.master_local_mode:
+                return "master_switch_missing"
+            # A service call skips an unavailable entity without a word, which
+            # would leave the user believing the board runs the master.
+            state = self.hass.states.get(board.master_local_mode)
+            if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                return "master_switch_failed"
+            try:
+                await self.hass.services.async_call(
+                    "switch",
+                    "turn_on",
+                    {"entity_id": board.master_local_mode},
+                    blocking=True,
+                )
+            except HomeAssistantError:
+                return "master_switch_failed"
+
+        return self._create_entry(options)
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
-        return OpenHydronicOptionsFlow()
+        return OpenHydronicOptionsFlow(config_entry)
 
 
 def _default_options() -> dict[str, Any]:
@@ -299,9 +579,14 @@ def _default_options() -> dict[str, Any]:
 class OpenHydronicOptionsFlow(OptionsFlow):
     """Zone mapping, master manager and hydraulic timings."""
 
-    def __init__(self) -> None:
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        # Kept here: Home Assistant only provides self.config_entry from 2024.11,
+        # and deprecates handing it in again from 2025.12.
+        self._entry = config_entry
         self._options: dict[str, Any] = {}
         self._editing_zone: str | None = None
+        self._board: Board | None = None
+        self._free: list[int] = []
 
     # -- helpers -------------------------------------------------------
     @property
@@ -325,15 +610,62 @@ class OpenHydronicOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if not self._options:
-            self._options = {**_default_options(), **dict(self.config_entry.options)}
+            self._options = {**_default_options(), **dict(self._entry.options)}
 
-        menu = ["add_zone"]
+        self._find_free_relays()
+        menu = ["import_zones"] if self._free else []
+        menu.append("add_zone")
         if self._zones:
             menu += ["edit_zone", "remove_zone"]
         menu += ["master", "timings", "protections"]
         return self.async_show_menu(step_id="init", menu_options=menu)
 
     # -- zones ---------------------------------------------------------
+    def _find_free_relays(self) -> None:
+        """Relays of the adopted board that no zone of any entry uses yet."""
+        data = self._entry.data
+        self._board = async_get_board(
+            self.hass,
+            mac=data.get(CONF_MAC),
+            host=data.get(CONF_HOST),
+            node_name=data.get(CONF_NODE_NAME),
+        )
+        self._free = []
+        if self._board is not None:
+            taken = taken_relays(self.hass.config_entries.async_entries(DOMAIN))
+            self._free = free_channels(self._board, taken)
+
+    async def async_step_import_zones(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Map the relays the board has that no zone uses, in one form."""
+        board = self._board
+        if board is None or not self._free:
+            return await self.async_step_init()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            created = zones_from_form(
+                board, user_input, new_id=_new_zone_id, channels=self._free
+            )
+            if unfinished_sections(board, user_input, channels=self._free):
+                errors["base"] = "sensor_required"
+            elif created:
+                self._options[CONF_ZONES] = self._zones + created
+                return self._save()
+            else:
+                errors["base"] = "no_zone_selected"
+
+        return self.async_show_form(
+            step_id="import_zones",
+            data_schema=_zones_schema(board, channels=self._free, previous=user_input),
+            errors=errors,
+            description_placeholders={
+                "name": self._entry.title,
+                "count": str(len(self._free)),
+            },
+        )
+
     async def async_step_add_zone(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:

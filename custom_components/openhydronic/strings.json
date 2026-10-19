@@ -13,14 +13,150 @@
       },
       "discovery_confirm": {
         "title": "OpenHydronic board found",
-        "description": "Do you want to add {name} ({host})? You will map the relays to zones in the next step."
+        "description": "Add {name} ({host})? The next step maps its relays to zones. If the board is already set up in the ESPHome integration, they are filled in for you."
+      },
+      "not_adopted": {
+        "title": "Add the board to ESPHome first",
+        "description": "{name} is not in Home Assistant's ESPHome integration yet, and that is where its relays come from. Add it under Settings, Devices & services, then press Check again. Or add the board now and map its zones later.",
+        "menu_options": {
+          "retry": "Check again",
+          "skip": "Add without zones"
+        }
+      },
+      "no_zones": {
+        "title": "The board has not reported its relays",
+        "description": "ESPHome knows {name}, but its relays have not appeared yet. Give it a minute and check again, or add the board now and map its zones later.",
+        "menu_options": {
+          "retry": "Check again",
+          "skip": "Add without zones"
+        }
+      },
+      "zones": {
+        "title": "Map your zones",
+        "description": "{name} has {count} relays. Pick a temperature sensor for every relay that heats a room and leave the others empty: a relay with no sensor does not become a zone. Have your room sensors in Home Assistant first. You can map the rest later in Configure.",
+        "data": {
+          "master_choice": "Boiler or circulator",
+          "master_entity": "Switch to drive"
+        },
+        "data_description": {
+          "master_choice": "What switches your boiler or circulator. Leave it on None if nothing does, or if this board does not control it. If you choose The board switches it, the board keeps its master relay for that (relay 8 on the published firmware): leave that relay without a sensor.",
+          "master_entity": "Only for Another switch in Home Assistant. A switch picked here counts as that answer."
+        },
+        "sections": {
+          "zone_1": {
+            "name": "Relay 1",
+            "description": "Terminal 1 on the board.",
+            "data": {
+              "name": "Room name",
+              "sensor_entity": "Temperature sensor"
+            },
+            "data_description": {
+              "name": "For example Living room. Left empty it is called Zone 1.",
+              "sensor_entity": "Leave empty if this relay heats no room."
+            }
+          },
+          "zone_2": {
+            "name": "Relay 2",
+            "description": "Terminal 2 on the board.",
+            "data": {
+              "name": "Room name",
+              "sensor_entity": "Temperature sensor"
+            },
+            "data_description": {
+              "name": "For example Living room. Left empty it is called Zone 2.",
+              "sensor_entity": "Leave empty if this relay heats no room."
+            }
+          },
+          "zone_3": {
+            "name": "Relay 3",
+            "description": "Terminal 3 on the board.",
+            "data": {
+              "name": "Room name",
+              "sensor_entity": "Temperature sensor"
+            },
+            "data_description": {
+              "name": "For example Living room. Left empty it is called Zone 3.",
+              "sensor_entity": "Leave empty if this relay heats no room."
+            }
+          },
+          "zone_4": {
+            "name": "Relay 4",
+            "description": "Terminal 4 on the board.",
+            "data": {
+              "name": "Room name",
+              "sensor_entity": "Temperature sensor"
+            },
+            "data_description": {
+              "name": "For example Living room. Left empty it is called Zone 4.",
+              "sensor_entity": "Leave empty if this relay heats no room."
+            }
+          },
+          "zone_5": {
+            "name": "Relay 5",
+            "description": "Terminal 5 on the board.",
+            "data": {
+              "name": "Room name",
+              "sensor_entity": "Temperature sensor"
+            },
+            "data_description": {
+              "name": "For example Living room. Left empty it is called Zone 5.",
+              "sensor_entity": "Leave empty if this relay heats no room."
+            }
+          },
+          "zone_6": {
+            "name": "Relay 6",
+            "description": "Terminal 6 on the board.",
+            "data": {
+              "name": "Room name",
+              "sensor_entity": "Temperature sensor"
+            },
+            "data_description": {
+              "name": "For example Living room. Left empty it is called Zone 6.",
+              "sensor_entity": "Leave empty if this relay heats no room."
+            }
+          },
+          "zone_7": {
+            "name": "Relay 7",
+            "description": "Terminal 7 on the board.",
+            "data": {
+              "name": "Room name",
+              "sensor_entity": "Temperature sensor"
+            },
+            "data_description": {
+              "name": "For example Living room. Left empty it is called Zone 7.",
+              "sensor_entity": "Leave empty if this relay heats no room."
+            }
+          },
+          "zone_8": {
+            "name": "Relay 8",
+            "description": "Terminal 8 on the board.",
+            "data": {
+              "name": "Room name",
+              "sensor_entity": "Temperature sensor"
+            },
+            "data_description": {
+              "name": "For example Living room. Left empty it is called Zone 8.",
+              "sensor_entity": "Leave empty if this relay heats no room."
+            }
+          }
+        }
       }
     },
     "abort": {
-      "already_configured": "This board is already configured."
+      "already_configured": "This board is already configured.",
+      "already_in_progress": "A setup for this board is already open. Finish it or dismiss it, then try again."
     },
     "error": {
-      "cannot_connect": "Could not reach the board."
+      "cannot_connect": "Could not reach the board.",
+      "relay_in_use": "One of those relays already belongs to a zone of another OpenHydronic board.",
+      "master_entity_required": "Select the switch that drives the boiler or circulator.",
+      "master_is_zone": "The boiler or circulator cannot be a relay you just made a zone.",
+      "master_switch_missing": "The board does not report its own master switch.",
+      "master_switch_failed": "The board's own master could not be switched on. Switch on Master Local Mode in the board's device page, or in its own Settings, then try again or leave it for later.",
+      "sensor_required": "A room name was typed without a temperature sensor. Pick the sensor, or clear the name."
+    },
+    "progress": {
+      "wait_board": "Waiting for the relays of {name} to appear in Home Assistant…"
     }
   },
   "options": {
@@ -29,6 +165,7 @@
         "title": "OpenHydronic",
         "description": "Map relays to zones and tune the hydraulic protections.",
         "menu_options": {
+          "import_zones": "Add the board's relays as zones",
           "add_zone": "Add zone",
           "edit_zone": "Edit zone",
           "remove_zone": "Remove zones",
@@ -52,7 +189,9 @@
       },
       "edit_zone": {
         "title": "Edit zone",
-        "data": { "zone_id": "Zone" }
+        "data": {
+          "zone_id": "Zone"
+        }
       },
       "edit_zone_details": {
         "title": "Edit {name}",
@@ -68,7 +207,9 @@
       },
       "remove_zone": {
         "title": "Remove zones",
-        "data": { "zones": "Zones to remove" }
+        "data": {
+          "zones": "Zones to remove"
+        }
       },
       "master": {
         "title": "Master manager",
@@ -99,6 +240,108 @@
           "anti_seize_minute": "Minute",
           "anti_seize_duration": "Cycle duration"
         }
+      },
+      "import_zones": {
+        "title": "Map more relays",
+        "description": "{name} has {count} relays that no zone uses yet. Pick a temperature sensor for each one that heats a room.",
+        "sections": {
+          "zone_1": {
+            "name": "Relay 1",
+            "description": "Terminal 1 on the board.",
+            "data": {
+              "name": "Room name",
+              "sensor_entity": "Temperature sensor"
+            },
+            "data_description": {
+              "name": "For example Living room. Left empty it is called Zone 1.",
+              "sensor_entity": "Leave empty if this relay heats no room."
+            }
+          },
+          "zone_2": {
+            "name": "Relay 2",
+            "description": "Terminal 2 on the board.",
+            "data": {
+              "name": "Room name",
+              "sensor_entity": "Temperature sensor"
+            },
+            "data_description": {
+              "name": "For example Living room. Left empty it is called Zone 2.",
+              "sensor_entity": "Leave empty if this relay heats no room."
+            }
+          },
+          "zone_3": {
+            "name": "Relay 3",
+            "description": "Terminal 3 on the board.",
+            "data": {
+              "name": "Room name",
+              "sensor_entity": "Temperature sensor"
+            },
+            "data_description": {
+              "name": "For example Living room. Left empty it is called Zone 3.",
+              "sensor_entity": "Leave empty if this relay heats no room."
+            }
+          },
+          "zone_4": {
+            "name": "Relay 4",
+            "description": "Terminal 4 on the board.",
+            "data": {
+              "name": "Room name",
+              "sensor_entity": "Temperature sensor"
+            },
+            "data_description": {
+              "name": "For example Living room. Left empty it is called Zone 4.",
+              "sensor_entity": "Leave empty if this relay heats no room."
+            }
+          },
+          "zone_5": {
+            "name": "Relay 5",
+            "description": "Terminal 5 on the board.",
+            "data": {
+              "name": "Room name",
+              "sensor_entity": "Temperature sensor"
+            },
+            "data_description": {
+              "name": "For example Living room. Left empty it is called Zone 5.",
+              "sensor_entity": "Leave empty if this relay heats no room."
+            }
+          },
+          "zone_6": {
+            "name": "Relay 6",
+            "description": "Terminal 6 on the board.",
+            "data": {
+              "name": "Room name",
+              "sensor_entity": "Temperature sensor"
+            },
+            "data_description": {
+              "name": "For example Living room. Left empty it is called Zone 6.",
+              "sensor_entity": "Leave empty if this relay heats no room."
+            }
+          },
+          "zone_7": {
+            "name": "Relay 7",
+            "description": "Terminal 7 on the board.",
+            "data": {
+              "name": "Room name",
+              "sensor_entity": "Temperature sensor"
+            },
+            "data_description": {
+              "name": "For example Living room. Left empty it is called Zone 7.",
+              "sensor_entity": "Leave empty if this relay heats no room."
+            }
+          },
+          "zone_8": {
+            "name": "Relay 8",
+            "description": "Terminal 8 on the board.",
+            "data": {
+              "name": "Room name",
+              "sensor_entity": "Temperature sensor"
+            },
+            "data_description": {
+              "name": "For example Living room. Left empty it is called Zone 8.",
+              "sensor_entity": "Leave empty if this relay heats no room."
+            }
+          }
+        }
       }
     },
     "error": {
@@ -106,7 +349,8 @@
       "bypass_exists": "A bypass zone is already defined.",
       "sensor_required": "A non-bypass zone needs a temperature sensor.",
       "master_entity_required": "Select the entity that drives the master.",
-      "master_is_zone": "The master cannot be a relay already used by a zone."
+      "master_is_zone": "The master cannot be a relay already used by a zone.",
+      "no_zone_selected": "Pick a temperature sensor for at least one relay."
     }
   },
   "selector": {
@@ -115,6 +359,13 @@
         "disabled": "Disabled (100% actuators)",
         "relay": "Physical relay on a board",
         "external": "External Home Assistant entity"
+      }
+    },
+    "master_choice": {
+      "options": {
+        "none": "None",
+        "board": "The board switches it",
+        "entity": "Another switch in Home Assistant"
       }
     }
   },
@@ -145,38 +396,65 @@
       "name": "Air purge",
       "description": "Opens every valve with the circulator running to bleed trapped air.",
       "fields": {
-        "entry_id": { "name": "Board", "description": "Board to act on." },
-        "duration": { "name": "Duration", "description": "Purge duration in seconds." }
+        "entry_id": {
+          "name": "Board",
+          "description": "Board to act on."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Purge duration in seconds."
+        }
       }
     },
     "stop_air_purge": {
       "name": "Stop air purge",
       "description": "Cancels a running air purge.",
       "fields": {
-        "entry_id": { "name": "Board", "description": "Board to act on." }
+        "entry_id": {
+          "name": "Board",
+          "description": "Board to act on."
+        }
       }
     },
     "run_anti_seize": {
       "name": "Run anti-seize routine",
       "description": "Cycles every relay so actuators do not seize.",
       "fields": {
-        "entry_id": { "name": "Board", "description": "Board to act on." },
-        "duration": { "name": "Duration", "description": "Cycle duration in seconds." }
+        "entry_id": {
+          "name": "Board",
+          "description": "Board to act on."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Cycle duration in seconds."
+        }
       }
     },
     "reset_metrics": {
       "name": "Reset metrics",
       "description": "Clears runtime and cycle counters.",
       "fields": {
-        "entry_id": { "name": "Board", "description": "Board to act on." }
+        "entry_id": {
+          "name": "Board",
+          "description": "Board to act on."
+        }
       }
     },
     "emergency_stop": {
       "name": "Emergency stop",
       "description": "Closes every valve and stops the circulator immediately, ignoring the minimum cycle timers.",
       "fields": {
-        "entry_id": { "name": "Board", "description": "Board to act on." }
+        "entry_id": {
+          "name": "Board",
+          "description": "Board to act on."
+        }
       }
+    }
+  },
+  "issues": {
+    "zones_unmapped": {
+      "title": "{name} has relays but no zones",
+      "description": "Home Assistant has found the relays of {name}, but nothing uses them yet. Open the OpenHydronic entry, choose Configure, then Add the board's relays as zones."
     }
   }
 }

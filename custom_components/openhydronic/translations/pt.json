@@ -13,14 +13,150 @@
       },
       "discovery_confirm": {
         "title": "Placa OpenHydronic encontrada",
-        "description": "Quer adicionar {name} ({host})? O mapeamento dos relés para zonas é feito a seguir."
+        "description": "Adicionar {name} ({host})? O passo seguinte associa os relés a zonas. Se a placa já estiver na integração ESPHome, vêm preenchidos."
+      },
+      "not_adopted": {
+        "title": "Adicione primeiro a placa ao ESPHome",
+        "description": "{name} ainda não está na integração ESPHome do Home Assistant, e é daí que vêm os relés. Adicione-a em Definições, Dispositivos e serviços, e depois carregue em Verificar de novo. Ou adicione já a placa e associe as zonas mais tarde.",
+        "menu_options": {
+          "retry": "Verificar de novo",
+          "skip": "Adicionar sem zonas"
+        }
+      },
+      "no_zones": {
+        "title": "A placa ainda não comunicou os relés",
+        "description": "O ESPHome conhece {name}, mas os relés ainda não apareceram. Dê-lhe um minuto e verifique de novo, ou adicione já a placa e associe as zonas mais tarde.",
+        "menu_options": {
+          "retry": "Verificar de novo",
+          "skip": "Adicionar sem zonas"
+        }
+      },
+      "zones": {
+        "title": "Associar as zonas",
+        "description": "{name} tem {count} relés. Escolha um sensor de temperatura para cada relé que aquece uma divisão e deixe os outros vazios: um relé sem sensor não passa a zona. Tenha primeiro os sensores das divisões no Home Assistant. O resto pode associar depois em Configurar.",
+        "data": {
+          "master_choice": "Caldeira ou circulador",
+          "master_entity": "Interruptor a comandar"
+        },
+        "data_description": {
+          "master_choice": "O que liga a caldeira ou o circulador. Deixe em Nenhum se nada o faz, ou se esta placa não o controla. Se escolher A placa comanda-o, a placa guarda o seu relé de master para isso (o relé 8 no firmware publicado): deixe esse relé sem sensor.",
+          "master_entity": "Só para Outro interruptor do Home Assistant. Um interruptor escolhido aqui conta como essa resposta."
+        },
+        "sections": {
+          "zone_1": {
+            "name": "Relé 1",
+            "description": "Terminal 1 da placa.",
+            "data": {
+              "name": "Nome da divisão",
+              "sensor_entity": "Sensor de temperatura"
+            },
+            "data_description": {
+              "name": "Por exemplo Sala. Se ficar vazio chama-se Zone 1.",
+              "sensor_entity": "Deixe vazio se este relé não aquece nenhuma divisão."
+            }
+          },
+          "zone_2": {
+            "name": "Relé 2",
+            "description": "Terminal 2 da placa.",
+            "data": {
+              "name": "Nome da divisão",
+              "sensor_entity": "Sensor de temperatura"
+            },
+            "data_description": {
+              "name": "Por exemplo Sala. Se ficar vazio chama-se Zone 2.",
+              "sensor_entity": "Deixe vazio se este relé não aquece nenhuma divisão."
+            }
+          },
+          "zone_3": {
+            "name": "Relé 3",
+            "description": "Terminal 3 da placa.",
+            "data": {
+              "name": "Nome da divisão",
+              "sensor_entity": "Sensor de temperatura"
+            },
+            "data_description": {
+              "name": "Por exemplo Sala. Se ficar vazio chama-se Zone 3.",
+              "sensor_entity": "Deixe vazio se este relé não aquece nenhuma divisão."
+            }
+          },
+          "zone_4": {
+            "name": "Relé 4",
+            "description": "Terminal 4 da placa.",
+            "data": {
+              "name": "Nome da divisão",
+              "sensor_entity": "Sensor de temperatura"
+            },
+            "data_description": {
+              "name": "Por exemplo Sala. Se ficar vazio chama-se Zone 4.",
+              "sensor_entity": "Deixe vazio se este relé não aquece nenhuma divisão."
+            }
+          },
+          "zone_5": {
+            "name": "Relé 5",
+            "description": "Terminal 5 da placa.",
+            "data": {
+              "name": "Nome da divisão",
+              "sensor_entity": "Sensor de temperatura"
+            },
+            "data_description": {
+              "name": "Por exemplo Sala. Se ficar vazio chama-se Zone 5.",
+              "sensor_entity": "Deixe vazio se este relé não aquece nenhuma divisão."
+            }
+          },
+          "zone_6": {
+            "name": "Relé 6",
+            "description": "Terminal 6 da placa.",
+            "data": {
+              "name": "Nome da divisão",
+              "sensor_entity": "Sensor de temperatura"
+            },
+            "data_description": {
+              "name": "Por exemplo Sala. Se ficar vazio chama-se Zone 6.",
+              "sensor_entity": "Deixe vazio se este relé não aquece nenhuma divisão."
+            }
+          },
+          "zone_7": {
+            "name": "Relé 7",
+            "description": "Terminal 7 da placa.",
+            "data": {
+              "name": "Nome da divisão",
+              "sensor_entity": "Sensor de temperatura"
+            },
+            "data_description": {
+              "name": "Por exemplo Sala. Se ficar vazio chama-se Zone 7.",
+              "sensor_entity": "Deixe vazio se este relé não aquece nenhuma divisão."
+            }
+          },
+          "zone_8": {
+            "name": "Relé 8",
+            "description": "Terminal 8 da placa.",
+            "data": {
+              "name": "Nome da divisão",
+              "sensor_entity": "Sensor de temperatura"
+            },
+            "data_description": {
+              "name": "Por exemplo Sala. Se ficar vazio chama-se Zone 8.",
+              "sensor_entity": "Deixe vazio se este relé não aquece nenhuma divisão."
+            }
+          }
+        }
       }
     },
     "abort": {
-      "already_configured": "Esta placa já está configurada."
+      "already_configured": "Esta placa já está configurada.",
+      "already_in_progress": "Já está aberta uma configuração para esta placa. Termine-a ou descarte-a e tente de novo."
     },
     "error": {
-      "cannot_connect": "Não foi possível contactar a placa."
+      "cannot_connect": "Não foi possível contactar a placa.",
+      "relay_in_use": "Um desses relés já pertence a uma zona de outra placa OpenHydronic.",
+      "master_entity_required": "Escolha o interruptor que comanda a caldeira ou o circulador.",
+      "master_is_zone": "A caldeira ou o circulador não pode ser um relé que acabou de tornar zona.",
+      "master_switch_missing": "A placa não indica o seu próprio interruptor de master.",
+      "master_switch_failed": "Não foi possível ligar o master da própria placa. Ligue o Master Local Mode na página do dispositivo da placa, ou nas suas Definições, e tente de novo ou deixe para mais tarde.",
+      "sensor_required": "Escreveu o nome de uma divisão sem escolher o sensor de temperatura. Escolha o sensor, ou apague o nome."
+    },
+    "progress": {
+      "wait_board": "A aguardar que os relés de {name} apareçam no Home Assistant…"
     }
   },
   "options": {
@@ -29,6 +165,7 @@
         "title": "OpenHydronic",
         "description": "Mapeie relés para zonas e ajuste as proteções hidráulicas.",
         "menu_options": {
+          "import_zones": "Adicionar os relés da placa como zonas",
           "add_zone": "Adicionar zona",
           "edit_zone": "Editar zona",
           "remove_zone": "Remover zonas",
@@ -52,7 +189,9 @@
       },
       "edit_zone": {
         "title": "Editar zona",
-        "data": { "zone_id": "Zona" }
+        "data": {
+          "zone_id": "Zona"
+        }
       },
       "edit_zone_details": {
         "title": "Editar {name}",
@@ -68,7 +207,9 @@
       },
       "remove_zone": {
         "title": "Remover zonas",
-        "data": { "zones": "Zonas a remover" }
+        "data": {
+          "zones": "Zonas a remover"
+        }
       },
       "master": {
         "title": "Gestor Master",
@@ -99,6 +240,108 @@
           "anti_seize_minute": "Minuto",
           "anti_seize_duration": "Duração do ciclo"
         }
+      },
+      "import_zones": {
+        "title": "Associar mais relés",
+        "description": "{name} tem {count} relés que nenhuma zona usa ainda. Escolha um sensor de temperatura para cada um que aquece uma divisão.",
+        "sections": {
+          "zone_1": {
+            "name": "Relé 1",
+            "description": "Terminal 1 da placa.",
+            "data": {
+              "name": "Nome da divisão",
+              "sensor_entity": "Sensor de temperatura"
+            },
+            "data_description": {
+              "name": "Por exemplo Sala. Se ficar vazio chama-se Zone 1.",
+              "sensor_entity": "Deixe vazio se este relé não aquece nenhuma divisão."
+            }
+          },
+          "zone_2": {
+            "name": "Relé 2",
+            "description": "Terminal 2 da placa.",
+            "data": {
+              "name": "Nome da divisão",
+              "sensor_entity": "Sensor de temperatura"
+            },
+            "data_description": {
+              "name": "Por exemplo Sala. Se ficar vazio chama-se Zone 2.",
+              "sensor_entity": "Deixe vazio se este relé não aquece nenhuma divisão."
+            }
+          },
+          "zone_3": {
+            "name": "Relé 3",
+            "description": "Terminal 3 da placa.",
+            "data": {
+              "name": "Nome da divisão",
+              "sensor_entity": "Sensor de temperatura"
+            },
+            "data_description": {
+              "name": "Por exemplo Sala. Se ficar vazio chama-se Zone 3.",
+              "sensor_entity": "Deixe vazio se este relé não aquece nenhuma divisão."
+            }
+          },
+          "zone_4": {
+            "name": "Relé 4",
+            "description": "Terminal 4 da placa.",
+            "data": {
+              "name": "Nome da divisão",
+              "sensor_entity": "Sensor de temperatura"
+            },
+            "data_description": {
+              "name": "Por exemplo Sala. Se ficar vazio chama-se Zone 4.",
+              "sensor_entity": "Deixe vazio se este relé não aquece nenhuma divisão."
+            }
+          },
+          "zone_5": {
+            "name": "Relé 5",
+            "description": "Terminal 5 da placa.",
+            "data": {
+              "name": "Nome da divisão",
+              "sensor_entity": "Sensor de temperatura"
+            },
+            "data_description": {
+              "name": "Por exemplo Sala. Se ficar vazio chama-se Zone 5.",
+              "sensor_entity": "Deixe vazio se este relé não aquece nenhuma divisão."
+            }
+          },
+          "zone_6": {
+            "name": "Relé 6",
+            "description": "Terminal 6 da placa.",
+            "data": {
+              "name": "Nome da divisão",
+              "sensor_entity": "Sensor de temperatura"
+            },
+            "data_description": {
+              "name": "Por exemplo Sala. Se ficar vazio chama-se Zone 6.",
+              "sensor_entity": "Deixe vazio se este relé não aquece nenhuma divisão."
+            }
+          },
+          "zone_7": {
+            "name": "Relé 7",
+            "description": "Terminal 7 da placa.",
+            "data": {
+              "name": "Nome da divisão",
+              "sensor_entity": "Sensor de temperatura"
+            },
+            "data_description": {
+              "name": "Por exemplo Sala. Se ficar vazio chama-se Zone 7.",
+              "sensor_entity": "Deixe vazio se este relé não aquece nenhuma divisão."
+            }
+          },
+          "zone_8": {
+            "name": "Relé 8",
+            "description": "Terminal 8 da placa.",
+            "data": {
+              "name": "Nome da divisão",
+              "sensor_entity": "Sensor de temperatura"
+            },
+            "data_description": {
+              "name": "Por exemplo Sala. Se ficar vazio chama-se Zone 8.",
+              "sensor_entity": "Deixe vazio se este relé não aquece nenhuma divisão."
+            }
+          }
+        }
       }
     },
     "error": {
@@ -106,7 +349,8 @@
       "bypass_exists": "Já existe uma zona de bypass definida.",
       "sensor_required": "Uma zona normal precisa de um sensor de temperatura.",
       "master_entity_required": "Selecione a entidade que comanda o Master.",
-      "master_is_zone": "O Master não pode ser um relé já usado por uma zona."
+      "master_is_zone": "O Master não pode ser um relé já usado por uma zona.",
+      "no_zone_selected": "Escolha um sensor de temperatura para pelo menos um relé."
     }
   },
   "selector": {
@@ -115,6 +359,13 @@
         "disabled": "Desativado (100% atuadores)",
         "relay": "Relé físico de uma placa",
         "external": "Entidade externa do Home Assistant"
+      }
+    },
+    "master_choice": {
+      "options": {
+        "none": "Nenhum",
+        "board": "A placa comanda-o",
+        "entity": "Outro interruptor do Home Assistant"
       }
     }
   },
@@ -145,38 +396,65 @@
       "name": "Purga de ar",
       "description": "Abre todas as válvulas com o circulador ligado para expulsar o ar do circuito.",
       "fields": {
-        "entry_id": { "name": "Placa", "description": "Placa a comandar." },
-        "duration": { "name": "Duração", "description": "Duração da purga em segundos." }
+        "entry_id": {
+          "name": "Placa",
+          "description": "Placa a comandar."
+        },
+        "duration": {
+          "name": "Duração",
+          "description": "Duração da purga em segundos."
+        }
       }
     },
     "stop_air_purge": {
       "name": "Parar purga de ar",
       "description": "Cancela uma purga em curso.",
       "fields": {
-        "entry_id": { "name": "Placa", "description": "Placa a comandar." }
+        "entry_id": {
+          "name": "Placa",
+          "description": "Placa a comandar."
+        }
       }
     },
     "run_anti_seize": {
       "name": "Executar anti-gripagem",
       "description": "Cicla todos os relés para evitar gripagem dos atuadores.",
       "fields": {
-        "entry_id": { "name": "Placa", "description": "Placa a comandar." },
-        "duration": { "name": "Duração", "description": "Duração do ciclo em segundos." }
+        "entry_id": {
+          "name": "Placa",
+          "description": "Placa a comandar."
+        },
+        "duration": {
+          "name": "Duração",
+          "description": "Duração do ciclo em segundos."
+        }
       }
     },
     "reset_metrics": {
       "name": "Repor métricas",
       "description": "Limpa os contadores de horas e de ciclos.",
       "fields": {
-        "entry_id": { "name": "Placa", "description": "Placa a comandar." }
+        "entry_id": {
+          "name": "Placa",
+          "description": "Placa a comandar."
+        }
       }
     },
     "emergency_stop": {
       "name": "Paragem de emergência",
       "description": "Fecha todas as válvulas e para o circulador de imediato, ignorando os tempos mínimos de ciclo.",
       "fields": {
-        "entry_id": { "name": "Placa", "description": "Placa a comandar." }
+        "entry_id": {
+          "name": "Placa",
+          "description": "Placa a comandar."
+        }
       }
+    }
+  },
+  "issues": {
+    "zones_unmapped": {
+      "title": "{name} tem relés mas não tem zonas",
+      "description": "O Home Assistant encontrou os relés de {name}, mas nada os usa ainda. Abra a entrada OpenHydronic, escolha Configurar e depois Adicionar os relés da placa como zonas."
     }
   }
 }

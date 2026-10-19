@@ -51,3 +51,36 @@ jobs:
       - run: python -m compileall -q custom_components/openhydronic
       - run: pip install -r requirements-test.txt
       - run: pytest tests -q
+
+  # The decision core is tested with stand-ins, but the config flow is not: its
+  # forms, menus and progress steps only mean something to a real Home Assistant.
+  flows:
+    name: Flows on Home Assistant ${{ matrix.ha }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The oldest release hacs.json promises, and the newest there is.
+          # Its dependencies have moved on since: these two are what its
+          # zeroconf component and its certificate code still need.
+          - ha: "2024.10"
+            python: "3.12"
+            plugin: "==0.13.171"
+            pins: "zeroconf==0.135.0 josepy<2"
+          - ha: latest
+            python: "3.14"
+            plugin: ""
+            pins: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install Home Assistant and its test plugin
+        env:
+          PINS: ${{ matrix.pins }}
+        run: |
+          pip install "pytest-homeassistant-custom-component${{ matrix.plugin }}"
+          if [ -n "$PINS" ]; then pip install $PINS; fi
+      - run: pytest tests -q -o asyncio_mode=auto

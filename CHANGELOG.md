@@ -4,13 +4,49 @@ All notable changes to this integration are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.0] - 2026-10-17
+
+### Added
+
+- The relays of the board fill in the zones screen. After the board is added in
+  the ESPHome integration, adding OpenHydronic lists every relay it has, one
+  section each, and a zone is made wherever a temperature sensor is picked.
+  Eight screens and the relay entity picked by hand, per zone, become one
+  screen. Nothing talks to the board: the relays are read from the entities
+  ESPHome already made, found by the names the firmware gave them, so renaming
+  an entity changes nothing.
+- The same screen asks what switches the boiler or circulator and assumes
+  nothing: none (the default), the board's own master, or another switch.
+- If the board is not in ESPHome yet the flow says so, with Check again and Add
+  without zones, instead of a dead end. A board that is in ESPHome but has not
+  listed its relays is waited for, with a progress step.
+- A room name typed without its sensor is refused instead of dropped, a switch
+  picked without choosing the answer counts as that answer, and what was typed
+  comes back after an error on every supported Home Assistant.
+- Configure offers to map the relays no zone uses yet, and a repair reminds you
+  when a board was added without any zone.
+- The config flow runs in CI against a real Home Assistant, the oldest release
+  `hacs.json` promises (2024.10) and the latest, besides the stand-in tests.
 
 ### Fixed
 
+- Configure could not be opened on Home Assistant 2024.10, the oldest release
+  `hacs.json` promises. The options flow used a property Home Assistant only
+  adds in 2024.11. It now keeps the entry itself.
 - The device page reported firmware 1.0.0 on every version: `INTEGRATION_VERSION`
   was a constant of its own and never followed `manifest.json`. The release
   workflow now refuses to publish if the two disagree.
+
+### Changed
+
+- A board typed in by hand that ESPHome knows is keyed by its MAC, so a later
+  discovery completes it instead of adding it twice, and a discovery card left
+  open no longer refuses it. A host with no relays to read, a Shelly, a Zigbee
+  relay or any other ESPHome board, is added at once as before.
+- Choosing that the board switches the boiler is refused while the board's
+  master switch is unavailable. Home Assistant skips an unavailable entity
+  without an error, so the flow would have reported a master it never started.
+- The reminder about relays with no zones is dropped when the entry is unloaded.
 
 ## [1.0.2] - 2026-10-15
 
@@ -69,6 +105,7 @@ First public release.
 - Bundled Lovelace card, registered automatically, English and Portuguese.
 - Brand icon and logo served from the integration itself (HA 2026.3 and newer).
 
+[1.1.0]: https://github.com/davdlic/OpenHydronic-HA/releases/tag/v1.1.0
 [1.0.2]: https://github.com/davdlic/OpenHydronic-HA/releases/tag/v1.0.2
 [1.0.1]: https://github.com/davdlic/OpenHydronic-HA/releases/tag/v1.0.1
 [1.0.0]: https://github.com/davdlic/OpenHydronic-HA/releases/tag/v1.0.0
