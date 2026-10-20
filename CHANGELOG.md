@@ -4,6 +4,18 @@ All notable changes to this integration are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [1.2.0] - 2026-10-19
+
+### Added
+
+- A repair while a board still answers to the public `admin` / `admin`. It can
+  be fixed from the repair itself: Home Assistant asks for a password and sets
+  it on the board's own `Board Password` entity, through the encrypted ESPHome
+  connection, so nobody has to open the board's page. The board says it is
+  exposed through its `Default Password` sensor, so nothing is raised for a
+  board that has a password of its own, for older firmware without the entities,
+  or while the board is offline.
+
 ## [1.1.0] - 2026-10-17
 
 ### Added
@@ -105,6 +117,7 @@ First public release.
 - Bundled Lovelace card, registered automatically, English and Portuguese.
 - Brand icon and logo served from the integration itself (HA 2026.3 and newer).
 
+[1.2.0]: https://github.com/davdlic/OpenHydronic-HA/releases/tag/v1.2.0
 [1.1.0]: https://github.com/davdlic/OpenHydronic-HA/releases/tag/v1.1.0
 [1.0.2]: https://github.com/davdlic/OpenHydronic-HA/releases/tag/v1.0.2
 [1.0.1]: https://github.com/davdlic/OpenHydronic-HA/releases/tag/v1.0.1

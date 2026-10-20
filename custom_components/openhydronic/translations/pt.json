@@ -455,6 +455,26 @@
     "zones_unmapped": {
       "title": "{name} tem relés mas não tem zonas",
       "description": "O Home Assistant encontrou os relés de {name}, mas nada os usa ainda. Abra a entrada OpenHydronic, escolha Configurar e depois Adicionar os relés da placa como zonas."
+    },
+    "default_password": {
+      "title": "{name} ainda usa a palavra-passe pública",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Definir uma palavra-passe para {name}",
+            "description": "A placa responde a admin / admin na sua própria página, e qualquer pessoa na sua rede pode abrir-lhe as válvulas ou carregar firmware. Escolha uma palavra-passe de 8 a 64 caracteres: letras, algarismos, espaços e os símbolos de um teclado inglês, sem acentos. Protege a página da placa e as atualizações de firmware da placa, e o utilizador continua a ser admin.",
+            "data": {
+              "password": "Nova palavra-passe"
+            }
+          }
+        },
+        "error": {
+          "password_short": "Use pelo menos 8 caracteres.",
+          "password_long": "Use no máximo 64 caracteres.",
+          "password_chars": "Use só letras, algarismos, espaços e os símbolos de um teclado inglês, sem acentos.",
+          "password_failed": "A placa não a aceitou. Confirme que está ligada e na sua rede, e tente de novo."
+        }
+      }
     }
   }
 }

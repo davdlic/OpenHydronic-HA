@@ -41,7 +41,7 @@ except ImportError:
 from custom_components.openhydronic import (
     ISSUE_ZONES_UNMAPPED,
     _async_check_unmapped,
-    _async_watch_unmapped,
+    _async_watch_board,
     async_remove_entry,
 )
 from custom_components.openhydronic import config_flow as flow_module
@@ -91,7 +91,7 @@ def discovery(mac="10061cf5f81c", name=NODE, host=HOST):
 
 def adopt(
     hass, zones=(1, 2, 3, 4, 5, 6, 7, 8), master=True, mac=MAC, node=NODE, host=HOST,
-    master_state="off",
+    master_state="off", password=True, default_password="on",
 ):
     """What the ESPHome integration leaves behind once it has adopted the board."""
     entry = MockConfigEntry(
@@ -115,6 +115,19 @@ def adopt(
         # A registry row has no state of its own; the board reports one when connected.
         if master_state is not None:
             hass.states.async_set(row.entity_id, master_state)
+    if password:
+        text = registry.async_get_or_create(
+            "text", "esphome", f"{mac}-text-password", config_entry=entry,
+            original_name="Board Password", suggested_object_id="openhydronic_board_password",
+        )
+        flag = registry.async_get_or_create(
+            "binary_sensor", "esphome", f"{mac}-binary_sensor-default-password", config_entry=entry,
+            original_name="Default Password", suggested_object_id="openhydronic_default_password",
+        )
+        # The board never publishes the password, so its state is "unknown".
+        hass.states.async_set(text.entity_id, "unknown")
+        if default_password is not None:
+            hass.states.async_set(flag.entity_id, default_password)
     return entry
 
 
@@ -744,7 +757,7 @@ async def test_no_reminder_when_another_entry_already_owns_the_relays(hass):
 
 async def test_the_reminder_follows_the_board_as_ESPHome_registers_it(hass):
     entry = our_entry(hass)
-    _async_watch_unmapped(hass, entry)
+    _async_watch_board(hass, entry)
     assert issue_of(hass, entry) is None
 
     adopt(hass, zones=(1, 2))

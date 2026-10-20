@@ -455,6 +455,26 @@
     "zones_unmapped": {
       "title": "{name} has relays but no zones",
       "description": "Home Assistant has found the relays of {name}, but nothing uses them yet. Open the OpenHydronic entry, choose Configure, then Add the board's relays as zones."
+    },
+    "default_password": {
+      "title": "{name} still uses the public password",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Set a password for {name}",
+            "description": "The board answers to admin / admin on its own page, and anyone on your network can open its valves or load firmware. Choose a password of 8 to 64 characters: letters, digits, spaces and the symbols of an English keyboard, no accents. It protects the board's page and its firmware updates, and the user stays admin.",
+            "data": {
+              "password": "New password"
+            }
+          }
+        },
+        "error": {
+          "password_short": "Use at least 8 characters.",
+          "password_long": "Use at most 64 characters.",
+          "password_chars": "Use only letters, digits, spaces and the symbols of an English keyboard, no accents.",
+          "password_failed": "The board did not take it. Check that it is online and connected to your network, then try again."
+        }
+      }
     }
   }
 }

@@ -98,6 +98,18 @@ def test_the_reminder_has_a_title_and_a_description(lang):
 
 
 @pytest.mark.parametrize("lang", [STRINGS, PT], ids=["en", "pt"])
+def test_the_password_repair_can_be_filled_in(lang):
+    issue = lang["issues"]["default_password"]
+    flow = issue["fix_flow"]
+    assert issue["title"]
+    assert flow["step"]["confirm"]["title"] and flow["step"]["confirm"]["description"]
+    assert flow["step"]["confirm"]["data"]["password"]
+    assert {"password_short", "password_long", "password_chars", "password_failed"} <= set(flow["error"])
+    for text in (issue["title"], flow["step"]["confirm"]["title"], flow["step"]["confirm"]["description"]):
+        assert set(re.findall(r"{(\w+)}", text)) <= {"name"}
+
+
+@pytest.mark.parametrize("lang", [STRINGS, PT], ids=["en", "pt"])
 def test_placeholders_are_only_ones_the_flows_provide(lang):
     for (kind, step), allowed in PLACEHOLDERS.items():
         node = lang[kind]["progress"][step] if step == "wait_board" else lang[kind]["step"][step]

@@ -19,7 +19,7 @@ DOMAIN: Final = "openhydronic"
 MANUFACTURER: Final = "OpenHydronic"
 MODEL: Final = "ESP32 Hydronic Controller"
 # Kept in step with manifest.json by the release workflow.
-INTEGRATION_VERSION: Final = "1.1.0"
+INTEGRATION_VERSION: Final = "1.2.0"
 
 PLATFORMS: Final[list[str]] = ["climate", "sensor", "switch"]
 

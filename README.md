@@ -61,6 +61,7 @@ boiler or circulator, and watches the sensors for silence.
 | Home Assistant | 2024.10 or newer |
 | Board | [OpenHydronic](https://github.com/davdlic/OpenHydronic) firmware, or any `switch`-like entity |
 | Published firmware | Home Assistant 2026.8 or newer, to adopt it in ESPHome without typing a key |
+| Password repair | Published firmware 1.3.0 or newer, which has the `Board Password` entity |
 | Sensors | One temperature sensor per zone (`sensor`, `number` or `input_number`) |
 | Relay domains | `switch`, `input_boolean`, `light`, `fan`, `valve` |
 | Installation | HACS custom repository, or manual copy |
@@ -303,6 +304,35 @@ state nor locks the zones out.
 
 ---
 
+## The board's password
+
+The published firmware answers to the public `admin` / `admin` until its owner sets a password. A
+board still on it raises a repair, titled with the board's name followed by "still uses the public
+password", under **Settings → System → Repairs**. Open it, choose a password of 8 to 64 characters
+(letters, digits, spaces and the symbols of an English keyboard, no accents), and Home Assistant
+sets it on the board's own `Board Password` entity, through the encrypted ESPHome connection: you
+never open the board's page. It needs the published firmware, version 1.3.0 or newer.
+
+The password is handed to that entity directly, so it does not go through the event bus or the
+recorder database. Only if the entity cannot be reached that way does it fall back to the
+`text.set_value` service, whose call the recorder does store. The repair clears once the board
+reports it has left the public password. If the board does not confirm within a few seconds, the
+form says so. This integration never writes the password to the log. With debug logging on for the
+ESPHome library (`aioesphomeapi`) the outgoing message can appear there, so do not share such a log.
+
+One password then protects the board's page and its firmware updates, and the user name does not
+change. Nothing is raised for a board that has a password, for firmware you built yourself, for
+older firmware without the entity, or while the board is offline. You can also set it by hand: the
+`Board Password` entity is write-only, and the board's own page has the same field under
+*Settings → Security*. Setting it from the entity in Home Assistant is a service call, which the
+recorder stores, so prefer the repair or the board's page.
+
+A password is not a lock on everything. The board's page is plain HTTP, the board does not lock out
+repeated wrong guesses, and anyone who can call services in this Home Assistant, admin or not, can
+set a new password without knowing the old one. The firmware README lists these limits.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
@@ -315,6 +345,8 @@ state nor locks the zones out.
 | The card shows no zones | No zones mapped yet | Options → Add zone. |
 | The board was added twice | Added manually and then discovered | Remove one entry; newer versions merge them automatically. |
 | A repair says the board has relays but no zones | The board was added without zones | Configure → Add the board's relays as zones. |
+| A repair says the board still uses the public password | The published firmware has not had a password set yet | Open the repair under Settings → System → Repairs and choose one. |
+| The password repair says the board did not take it | The board is offline or unreachable from Home Assistant, or did not confirm within a few seconds | Check the board is online and connected, then try again. |
 | The zones screen says the board is not in ESPHome | Home Assistant gets the relays from the ESPHome integration | Add the board there first, then press Check again. |
 | ESPHome asks for an encryption key for the published firmware | Home Assistant is older than 2026.8 and cannot set the key itself | Update Home Assistant, or build the firmware with your own key. |
 | The boiler stopped after the board was factory reset | *Master Local Mode* goes back to off | Switch it on again on the board's device page. |

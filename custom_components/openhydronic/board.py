@@ -37,6 +37,8 @@ ESPHOME_DOMAIN = "esphome"
 # Entity names declared in openhydronic-8ch.yaml. The registry keeps them in
 # original_name whatever the user renames afterwards, so they are the contract.
 MASTER_LOCAL_MODE = "Master Local Mode"
+BOARD_PASSWORD = "Board Password"  # text: sets the password of the page and the OTA
+DEFAULT_PASSWORD = "Default Password"  # binary_sensor: on while it is still the public one
 _ZONE = re.compile(r"^Zone ([1-8])$")
 
 # Keys the ESPHome integration stores in its config entries.
@@ -63,6 +65,8 @@ class Board:
     mac: str | None
     zones: Mapping[int, str] = field(default_factory=dict)  # channel -> switch
     master_local_mode: str | None = None  # switch entity_id
+    password_text: str | None = None  # text entity_id; absent on older firmware
+    default_password: str | None = None  # binary_sensor entity_id
 
 
 def parse_board(
@@ -75,6 +79,8 @@ def parse_board(
     """Map the registry entries of one ESPHome config entry to the board."""
     zones: dict[int, str] = {}
     master: str | None = None
+    password: str | None = None
+    default: str | None = None
 
     for entry in entries:
         if getattr(entry, "platform", ESPHOME_DOMAIN) != ESPHOME_DOMAIN:
@@ -83,12 +89,17 @@ def parse_board(
         if getattr(entry, "disabled_by", None) is not None:
             continue
         name = getattr(entry, "original_name", None)
-        if not name or entry.domain != "switch":
+        if not name:
             continue
-        if (match := _ZONE.match(name)) is not None:
-            zones[int(match.group(1))] = entry.entity_id
-        elif name == MASTER_LOCAL_MODE:
-            master = entry.entity_id
+        if entry.domain == "switch":
+            if (match := _ZONE.match(name)) is not None:
+                zones[int(match.group(1))] = entry.entity_id
+            elif name == MASTER_LOCAL_MODE:
+                master = entry.entity_id
+        elif entry.domain == "text" and name == BOARD_PASSWORD:
+            password = entry.entity_id
+        elif entry.domain == "binary_sensor" and name == DEFAULT_PASSWORD:
+            default = entry.entity_id
 
     return Board(
         esphome_entry_id=esphome_entry_id,
@@ -96,6 +107,8 @@ def parse_board(
         mac=normalize_mac(mac),
         zones=dict(sorted(zones.items())),
         master_local_mode=master,
+        password_text=password,
+        default_password=default,
     )
 
 

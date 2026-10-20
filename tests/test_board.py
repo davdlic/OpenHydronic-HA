@@ -127,6 +127,39 @@ def test_the_boards_own_master_switch_is_found_by_name():
     assert parse_board(rows, esphome_entry_id="e1").master_local_mode == "switch.master_local_mode"
 
 
+def test_the_password_entities_are_found_by_name():
+    rows = [
+        row("Zone 1"),
+        row("Board Password", domain="text", entity_id="text.my_password"),
+        row("Default Password", domain="binary_sensor", entity_id="binary_sensor.exposed"),
+    ]
+
+    board = parse_board(rows, esphome_entry_id="e1")
+
+    assert board.password_text == "text.my_password"
+    assert board.default_password == "binary_sensor.exposed"
+
+
+def test_older_firmware_has_no_password_entities():
+    board = parse_board([row("Zone 1")], esphome_entry_id="e1")
+
+    assert board.password_text is None and board.default_password is None
+
+
+def test_an_entity_of_another_kind_with_the_password_name_is_not_one():
+    rows = [
+        row("Board Password", domain="switch"),
+        row("Board Password", domain="sensor"),
+        row("Default Password", domain="switch"),
+        row("Default Password", domain="sensor"),
+        row("Default Password", domain="text"),
+    ]
+
+    board = parse_board(rows, esphome_entry_id="e1")
+
+    assert board.password_text is None and board.default_password is None
+
+
 def test_a_board_without_the_master_switch_reports_none():
     assert parse_board([row("Zone 1")], esphome_entry_id="e1").master_local_mode is None
 
