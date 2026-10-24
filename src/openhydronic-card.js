@@ -17,7 +17,14 @@ const LitElement =
 const html = LitElement.prototype.html;
 const css = LitElement.prototype.css;
 
-const CARD_VERSION = "1.0.0";
+const CARD_VERSION = "1.2.1";
+
+// Material Design Icons paths, inlined so the card works offline.
+const ICON_FIRE = "M17.66 11.2C17.43 10.9 17.15 10.64 16.89 10.38C16.22 9.78 15.46 9.35 14.82 8.72C13.33 7.26 13 4.85 13.95 3C13 3.23 12.17 3.75 11.46 4.32C8.87 6.4 7.85 10.07 9.07 13.22C9.11 13.32 9.15 13.42 9.15 13.55C9.15 13.77 9 13.97 8.8 14.05C8.57 14.15 8.33 14.09 8.14 13.93C8.08 13.88 8.04 13.83 8 13.76C6.87 12.33 6.69 10.28 7.45 8.64C5.78 10 4.87 12.3 5 14.47C5.06 14.97 5.12 15.47 5.29 15.97C5.43 16.57 5.7 17.17 6 17.7C7.08 19.43 8.95 20.67 10.96 20.92C13.1 21.19 15.39 20.8 17.03 19.32C18.86 17.66 19.5 15 18.56 12.72L18.43 12.46C18.22 12 17.66 11.2 17.66 11.2M14.5 17.5C14.22 17.74 13.76 18 13.4 18.1C12.28 18.5 11.16 17.94 10.5 17.28C11.69 17 12.4 16.12 12.61 15.23C12.78 14.43 12.46 13.77 12.33 13C12.21 12.26 12.23 11.63 12.5 10.94C12.69 11.32 12.89 11.7 13.13 12C13.9 13 15.11 13.44 15.37 14.8C15.41 14.94 15.43 15.08 15.43 15.23C15.46 16.05 15.1 16.95 14.5 17.5H14.5Z";
+const ICON_FIRE_OFF = "M22.11 21.46L2.39 1.73L1.11 3L7.09 9C5.66 10.36 4.88 12.47 5 14.47C5.06 14.97 5.12 15.47 5.29 15.97C5.43 16.57 5.7 17.17 6 17.7C7.08 19.43 8.95 20.67 10.96 20.92C13.1 21.19 15.39 20.8 17.03 19.32C17.1 19.26 17.15 19.18 17.22 19.11L20.84 22.73L22.11 21.46M8.8 14.05C8.57 14.15 8.33 14.09 8.14 13.93C8.08 13.88 8.04 13.83 8 13.76C7 12.47 6.74 10.69 7.26 9.15L8.58 10.47C8.58 11.4 8.73 12.33 9.07 13.22C9.11 13.32 9.15 13.42 9.15 13.55C9.15 13.77 9 13.97 8.8 14.05M14.5 17.5C14.22 17.74 13.76 18 13.4 18.1C12.28 18.5 11.16 17.94 10.5 17.28C11.69 17 12.4 16.12 12.61 15.23C12.66 15 12.66 14.76 12.64 14.53L15 16.88C14.85 17.11 14.69 17.33 14.5 17.5M18.92 15.72L9.65 6.46C10.12 5.65 10.72 4.92 11.46 4.32C12.17 3.75 13 3.23 13.95 3C13 4.85 13.33 7.26 14.82 8.72C15.46 9.35 16.22 9.78 16.89 10.38C17.15 10.64 17.43 10.9 17.66 11.2C17.66 11.2 18.22 12 18.43 12.46L18.56 12.72C18.96 13.69 19.06 14.72 18.92 15.72Z";
+const ICON_ALERT = "M12,2L1,21H23M12,6L19.53,19H4.47M11,10V14H13V10M11,16V18H13V16";
+
+const PRESETS = ["comfort", "eco", "away"];
 
 const VALVE_COLORS = {
   closed: "var(--oh-valve-closed)",
@@ -35,7 +42,11 @@ const LABELS = {
       "No zones configured yet. Add them in Settings -> Devices & services -> OpenHydronic -> Configure.",
     summer: "Summer",
     holiday: "Holiday",
-    air_purge: "Air purge",
+    air_purge: "Purge",
+    now: "Now",
+    lower: "Lower the setpoint",
+    raise: "Raise the setpoint",
+    presets: { comfort: "Comfort", eco: "Eco", away: "Away" },
     purge_left: (min) => `Purge ${min} min`,
     min_cycle: (min) => `minimum cycle ${min} min`,
     metrics: (hours, cycles) => `${hours} h - ${cycles} cycles`,
@@ -71,7 +82,11 @@ const LABELS = {
       "Sem zonas configuradas. Adicione-as em Definições -> Dispositivos e serviços -> OpenHydronic -> Configurar.",
     summer: "Verão",
     holiday: "Férias",
-    air_purge: "Purga de ar",
+    air_purge: "Purga",
+    now: "Agora",
+    lower: "Baixar a temperatura",
+    raise: "Subir a temperatura",
+    presets: { comfort: "Conforto", eco: "Eco", away: "Ausente" },
     purge_left: (min) => `Purga ${min} min`,
     min_cycle: (min) => `ciclo mínimo ${min} min`,
     metrics: (hours, cycles) => `${hours} h - ${cycles} ciclos`,
@@ -138,7 +153,7 @@ class OpenHydronicCard extends LitElement {
   }
 
   getCardSize() {
-    return 2 + Math.ceil(this._zones().length / 2);
+    return 3 + this._zones().length * 3;
   }
 
   /** Labels in the Home Assistant language. */
@@ -257,78 +272,97 @@ class OpenHydronicCard extends LitElement {
         ? Number(a.temperature).toFixed(1)
         : "--";
     const locked = a.locked_until > 0;
+    const open = () => this._moreInfo(zone.entity_id);
 
     return html`
       <div class="zone ${off ? "disabled" : ""} ${a.is_bypass ? "bypass" : ""}">
-        <div
-          class="valve ${valve}"
-          @click=${() => this._moreInfo(zone.entity_id)}
-          title=${l.fault[fault] || valve}
-        >
-          ${this._valveIcon(valve)}
-        </div>
-
-        <div class="info" @click=${() => this._moreInfo(zone.entity_id)}>
-          <div class="name">
+        <div class="top">
+          <div class="valve ${valve}" @click=${open} title=${l.fault[fault] || valve}>
+            ${this._valveIcon(valve)}
+          </div>
+          <div class="name" @click=${open}>
             ${a.friendly_name || zone.entity_id}
             ${a.is_bypass ? html`<span class="tag">bypass</span>` : ""}
           </div>
-          <div class="temps">
-            <span class="current">${current}<small>°C</small></span>
-            <span class="sep">→</span>
-            <span class="target">${target}<small>°C</small></span>
-          </div>
-          <div class="sub">
-            ${fault
-              ? html`<span class="fault">${l.fault[fault] || fault}</span>`
-              : locked
-                ? html`<span class="lock">
-                    <ha-icon icon="mdi:lock-clock"></ha-icon>
-                    ${l.min_cycle(Math.ceil(a.locked_until / 60))}
-                  </span>`
-                : html`<span class="preset">${a.preset_mode || ""}</span>`}
-            ${this._config.show_metrics
-              ? html`<span class="metrics">
-                  ${l.metrics(a.runtime_hours ?? 0, a.cycles ?? 0)}
+          ${fault
+            ? html`<span class="notice fault">${l.fault[fault] || fault}</span>`
+            : locked
+              ? html`<span class="notice">
+                  <ha-icon icon="mdi:lock-clock"></ha-icon>
+                  ${l.min_cycle(Math.ceil(a.locked_until / 60))}
                 </span>`
               : ""}
-          </div>
         </div>
 
         ${a.is_bypass
           ? ""
-          : html`<div class="controls">
-              <button @click=${() => this._nudge(zone, +0.5)}>
-                <ha-icon icon="mdi:plus"></ha-icon>
-              </button>
-              <button @click=${() => this._nudge(zone, -0.5)}>
-                <ha-icon icon="mdi:minus"></ha-icon>
-              </button>
-            </div>`}
+          : html`
+              <div class="mid">
+                <div class="now" @click=${open}>
+                  <small>${l.now}</small>
+                  <b>${current}<small>°C</small></b>
+                </div>
+                <div class="stepper">
+                  <button
+                    aria-label=${l.lower}
+                    @click=${() => this._nudge(zone, -0.5)}
+                  >
+                    <ha-icon icon="mdi:minus"></ha-icon>
+                  </button>
+                  <div class="set">${target}<small>°C</small></div>
+                  <button
+                    aria-label=${l.raise}
+                    @click=${() => this._nudge(zone, +0.5)}
+                  >
+                    <ha-icon icon="mdi:plus"></ha-icon>
+                  </button>
+                </div>
+              </div>
+              <div class="presets">
+                ${PRESETS.map(
+                  (key) => html`
+                    <button
+                      class=${a.preset_mode === key ? "on" : ""}
+                      aria-pressed=${a.preset_mode === key ? "true" : "false"}
+                      @click=${() => this._preset(zone, key)}
+                    >
+                      ${l.presets[key]}
+                    </button>
+                  `
+                )}
+              </div>
+            `}
+        ${this._config.show_metrics
+          ? html`<div class="metrics">
+              ${l.metrics(a.runtime_hours ?? 0, a.cycles ?? 0)}
+            </div>`
+          : ""}
       </div>
     `;
   }
 
   _valveIcon(valve) {
     const color = VALVE_COLORS[valve] || VALVE_COLORS.closed;
+    const closed = valve === "closed";
+    const glyph =
+      valve === "fault" ? ICON_ALERT : closed ? ICON_FIRE_OFF : ICON_FIRE;
     return html`
       <svg viewBox="0 0 48 48" aria-hidden="true">
         <circle cx="24" cy="24" r="21" class="halo" fill=${color} />
-        <path
-          d="M24 6v9m0 18v9M6 24h9m18 0h9"
+        <circle
+          cx="24"
+          cy="24"
+          r="17"
+          fill=${closed ? "none" : color}
           stroke=${color}
-          stroke-width="3"
-          stroke-linecap="round"
-          fill="none"
-          opacity="0.55"
+          stroke-width="2.5"
         />
-        <circle cx="24" cy="24" r="10" fill=${color} />
-        <path
-          d="M19 24h10M24 19v10"
-          stroke="rgba(255,255,255,0.9)"
-          stroke-width="2.4"
-          stroke-linecap="round"
-        />
+        <g transform="translate(10 10) scale(1.1667)">
+          <path
+            d=${glyph}
+            fill=${closed ? color : "rgba(255,255,255,0.95)"}
+          />
+        </g>
       </svg>
     `;
   }
@@ -343,6 +377,13 @@ class OpenHydronicCard extends LitElement {
     this.hass.callService("climate", "set_temperature", {
       entity_id: zone.entity_id,
       temperature: Math.round((base + delta) * 2) / 2,
+    });
+  }
+
+  _preset(zone, preset) {
+    this.hass.callService("climate", "set_preset_mode", {
+      entity_id: zone.entity_id,
+      preset_mode: preset,
     });
   }
 
@@ -424,7 +465,7 @@ class OpenHydronicCard extends LitElement {
 
       .globals {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
         gap: 8px;
         margin-bottom: 16px;
       }
@@ -433,13 +474,14 @@ class OpenHydronicCard extends LitElement {
         align-items: center;
         justify-content: center;
         gap: 6px;
-        padding: 10px 8px;
+        padding: 10px 6px;
         border-radius: 14px;
         border: 1px solid var(--oh-glass-border);
         background: var(--oh-glass-bg);
         color: inherit;
         font: inherit;
         font-size: 0.85rem;
+        min-width: 0;
         cursor: pointer;
         transition: all 0.2s ease;
       }
@@ -457,11 +499,7 @@ class OpenHydronicCard extends LitElement {
         gap: 10px;
       }
       .zone {
-        display: grid;
-        grid-template-columns: 52px 1fr auto;
-        align-items: center;
-        gap: 12px;
-        padding: 10px 12px;
+        padding: 14px;
         border-radius: 16px;
         background: var(--oh-glass-bg);
         border: 1px solid var(--oh-glass-border);
@@ -472,10 +510,25 @@ class OpenHydronicCard extends LitElement {
       .zone.bypass {
         border-style: dashed;
       }
+      .zone button {
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        border: 1px solid var(--oh-glass-border);
+        background: var(--oh-glass-bg);
+      }
 
+      .top {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
       .valve {
-        width: 48px;
-        height: 48px;
+        flex: none;
+        width: 44px;
+        height: 44px;
         cursor: pointer;
       }
       .valve svg {
@@ -491,19 +544,18 @@ class OpenHydronicCard extends LitElement {
       .valve.open .halo {
         opacity: 0.22;
       }
-
-      .info {
-        cursor: pointer;
-        min-width: 0;
-      }
       .name {
+        flex: 1;
+        min-width: 0;
         font-weight: 600;
+        font-size: 1.05rem;
         display: flex;
         align-items: center;
         gap: 6px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        cursor: pointer;
       }
       .tag {
         font-size: 0.65rem;
@@ -514,62 +566,105 @@ class OpenHydronicCard extends LitElement {
         background: var(--oh-glass-bg);
         border: 1px solid var(--oh-glass-border);
       }
-      .temps {
-        display: flex;
-        align-items: baseline;
-        gap: 6px;
-        font-size: 1.15rem;
-      }
-      .temps small {
-        font-size: 0.7rem;
-        opacity: 0.7;
-      }
-      .temps .sep {
-        opacity: 0.5;
-      }
-      .temps .target {
-        color: var(--oh-valve-open);
-      }
-      .sub {
-        display: flex;
-        gap: 10px;
-        font-size: 0.75rem;
-        opacity: 0.8;
-        text-transform: capitalize;
-      }
-      .sub .fault {
-        color: var(--oh-valve-fault);
-        text-transform: none;
-      }
-      .sub .lock {
+      .notice {
         display: inline-flex;
         align-items: center;
-        gap: 3px;
-        text-transform: none;
+        gap: 4px;
+        flex: none;
+        max-width: 55%;
+        font-size: 0.72rem;
+        font-weight: 500;
+        padding: 3px 9px;
+        border-radius: 999px;
+        background: var(--oh-glass-bg);
+        border: 1px solid var(--oh-glass-border);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
-      .sub ha-icon {
+      .notice.fault {
+        color: #ff6b66;
+        border-color: rgba(229, 57, 53, 0.55);
+        background: rgba(229, 57, 53, 0.14);
+      }
+      .notice ha-icon {
         --mdc-icon-size: 14px;
       }
 
-      .controls {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-      .controls button {
-        width: 34px;
-        height: 28px;
-        border-radius: 9px;
-        border: 1px solid var(--oh-glass-border);
-        background: var(--oh-glass-bg);
-        color: inherit;
-        cursor: pointer;
+      .mid {
         display: flex;
         align-items: center;
-        justify-content: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 12px;
       }
-      .controls ha-icon {
-        --mdc-icon-size: 18px;
+      .now {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.15;
+        cursor: pointer;
+      }
+      .now small {
+        font-size: 0.7rem;
+        opacity: 0.7;
+      }
+      .now b {
+        font-size: 1.35rem;
+        font-weight: 500;
+      }
+      .now b small {
+        font-size: 0.75rem;
+        font-weight: 400;
+      }
+      .stepper {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .stepper .set {
+        min-width: 84px;
+        text-align: center;
+        font-size: 1.55rem;
+        font-weight: 600;
+        color: var(--oh-valve-open);
+      }
+      .stepper .set small {
+        font-size: 0.75rem;
+        font-weight: 400;
+      }
+      .stepper button {
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+      }
+      .stepper ha-icon {
+        --mdc-icon-size: 28px;
+      }
+
+      .presets {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .presets button {
+        height: 46px;
+        border-radius: 14px;
+        font-size: 0.92rem;
+        min-width: 0;
+      }
+      .presets button.on {
+        color: var(--oh-valve-open);
+        border-color: var(--oh-valve-open);
+        background: rgba(251, 140, 0, 0.22);
+        font-weight: 600;
+      }
+      .metrics {
+        margin-top: 10px;
+        font-size: 0.72rem;
+        opacity: 0.7;
       }
 
       .empty {

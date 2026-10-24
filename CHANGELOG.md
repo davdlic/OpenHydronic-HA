@@ -4,6 +4,23 @@ All notable changes to this integration are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [1.2.1] - 2026-10-25
+
+### Changed
+
+- The card is built for a phone. Each zone has the `-` and `+` on either side of
+  the target temperature, 52 px wide, and three preset buttons (Comfort, Eco,
+  Away) that set the preset with a tap. The active preset is lit; a temperature
+  set by hand leaves none lit instead of showing the word `none`.
+- The minimum cycle and fault messages sit to the right of the zone name.
+- The valve is a flame on a disc: orange when it heats, crossed out and grey
+  when closed, a red warning triangle on a fault.
+- Presets read in the Home Assistant language (Conforto, Eco, Ausente), and
+  "Air purge" is shortened to "Purge" so the three global buttons fit across a
+  phone.
+- The README explains that the presets do not detect anyone in the room, and
+  gives automations that switch them from a presence sensor or a schedule.
+
 ## [1.2.0] - 2026-10-19
 
 ### Added

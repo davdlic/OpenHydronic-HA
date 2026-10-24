@@ -209,14 +209,21 @@ show_global: true           # Summer / Holiday / Air purge buttons
 show_metrics: false         # runtime hours and cycles per zone
 ```
 
+Each zone shows its valve, the current temperature and the target, with `-` and `+` on either
+side of the target (0.5 °C a step) and three buttons for the presets: Comfort, Eco and Away. The
+lit button is the preset in force. A target set by hand leaves none lit, and a tap on a button puts
+the zone back on that preset. Tapping the name or the temperature opens the zone's details. The
+minimum cycle countdown and any fault appear to the right of the name. The controls are sized for
+a phone.
+
 Valve states, matching what the coordinator decided:
 
-| Colour | Meaning |
+| Look | Meaning |
 |---|---|
-| Grey | Closed |
-| Pulsing orange | Opening: PTC travel time, or waiting on the master thermal delay |
-| Solid orange | Open and flowing |
-| Red | Fault: the sensor watchdog tripped or the relay is unavailable |
+| Grey, flame crossed out | Closed |
+| Pulsing orange flame | Opening: PTC travel time, or waiting on the master thermal delay |
+| Solid orange flame | Open and flowing |
+| Red, warning triangle | Fault: the sensor watchdog tripped or the relay is unavailable |
 
 The card takes its language from Home Assistant, English or Portuguese.
 
@@ -239,6 +246,42 @@ action: openhydronic.air_purge
 data:
   duration: 1800
 ```
+
+Comfort, Eco and Away are chosen by you, with the buttons on the card or from an automation.
+Nothing here detects whether a room is in use. Set each zone's three temperatures in
+**Configure → Edit zone**, then let a presence sensor or the clock choose the preset:
+
+```yaml
+automation:
+  - alias: Office empty, save energy
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.office_presence
+        to: "off"
+        for: "00:30:00"
+    actions:
+      - action: climate.set_preset_mode
+        target:
+          entity_id: climate.office
+        data:
+          preset_mode: eco
+
+  - alias: Bedrooms at night
+    triggers:
+      - trigger: time
+        at: "22:00:00"
+    actions:
+      - action: climate.set_preset_mode
+        target:
+          entity_id:
+            - climate.main_bedroom
+            - climate.kids_room
+        data:
+          preset_mode: eco
+```
+
+Use `comfort`, `eco`, `away` or `none` as the `preset_mode`. The **Holiday** switch puts every zone
+on its Away temperature at once.
 
 Turn the heating off while a window is open:
 
