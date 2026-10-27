@@ -4,6 +4,17 @@ All notable changes to this integration are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [1.2.2] - 2026-10-27
+
+### Fixed
+
+- The card never showed up in Home Assistant's card picker. Home Assistant
+  imports the card file when the page starts, before its own Lovelace elements
+  exist, and the card borrowed Lit from them, so it failed on the first line and
+  registered nothing. Lit now ships inside the card. This applies to every
+  earlier version, which the tests could not see because they supplied Lit
+  themselves.
+
 ## [1.2.1] - 2026-10-25
 
 ### Changed

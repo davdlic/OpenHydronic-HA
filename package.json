@@ -6,9 +6,10 @@
   "private": true,
   "scripts": {
     "build": "esbuild src/openhydronic-card.js --bundle --minify --format=esm --banner:js=\"/*! OpenHydronic-HA - Copyright (C) 2026 David Lopes - GPL-3.0-or-later - https://github.com/davdlic/OpenHydronic-HA */\" --outfile=custom_components/openhydronic/www/openhydronic-card.js",
-    "dev": "node -e \"require('fs').copyFileSync('src/openhydronic-card.js','custom_components/openhydronic/www/openhydronic-card.js')\""
+    "dev": "esbuild src/openhydronic-card.js --bundle --format=esm --outfile=custom_components/openhydronic/www/openhydronic-card.js"
   },
   "devDependencies": {
-    "esbuild": "^0.24.0"
+    "esbuild": "^0.24.0",
+    "lit": "3.3.3"
   }
 }

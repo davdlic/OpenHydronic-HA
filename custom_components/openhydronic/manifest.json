@@ -22,7 +22,7 @@
     "custom_components.openhydronic"
   ],
   "requirements": [],
-  "version": "1.2.1",
+  "version": "1.2.2",
   "zeroconf": [
     {
       "type": "_esphomelib._tcp.local.",

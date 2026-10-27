@@ -384,7 +384,7 @@ set a new password without knowing the old one. The firmware README lists these 
 | A zone will not turn on right away | Minimum OFF lock | Normal. `locked_until` on the climate entity counts it down. |
 | The master never starts | Master manager disabled, or no entity selected | Options → Master manager. |
 | The circulator runs with everything closed | No bypass configured | Mark a zone as the bypass loop, or fit a mechanical one. |
-| The card does not appear | Browser cache after an update | Hard refresh, Ctrl+Shift+R. |
+| The card does not appear | Version 1.2.1 or older, or the browser cache after an update | Update to 1.2.2 or newer, restart Home Assistant, then hard refresh, Ctrl+Shift+R. |
 | The card shows no zones | No zones mapped yet | Options → Add zone. |
 | The board was added twice | Added manually and then discovered | Remove one entry; newer versions merge them automatically. |
 | A repair says the board has relays but no zones | The board was added without zones | Configure → Add the board's relays as zones. |
