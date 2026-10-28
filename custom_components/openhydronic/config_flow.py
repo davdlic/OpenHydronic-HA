@@ -99,7 +99,11 @@ from .const import (
 WAIT_POLLS = 30
 
 SWITCHABLE_DOMAINS = ["switch", "input_boolean", "light", "fan", "valve"]
-SENSOR_DOMAINS = ["sensor", "number", "input_number"]
+# Not "number": a thermostat's setpoints are numbers and look like its sensor in the list.
+SENSOR_FILTERS = [
+    {"domain": "sensor", "device_class": "temperature"},
+    {"domain": "input_number"},
+]
 
 STEP_USER_SCHEMA = vol.Schema(
     {
@@ -128,9 +132,7 @@ def _relay_selector() -> selector.EntitySelector:
 
 def _sensor_selector() -> selector.EntitySelector:
     return selector.EntitySelector(
-        selector.EntitySelectorConfig(
-            domain=SENSOR_DOMAINS, device_class="temperature"
-        )
+        selector.EntitySelectorConfig(filter=SENSOR_FILTERS)
     )
 
 

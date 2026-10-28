@@ -303,3 +303,39 @@ def test_air_purge_opens_everything_and_ignores_the_guards():
     demand = coordinator._evaluate_demand()
     assert demand == {"z1": True}
     assert coordinator._apply_cycle_guards(demand, now) == {"z1": True}
+
+
+# ---------------------------------------------------------------------------
+# Lock shown on the card
+# ---------------------------------------------------------------------------
+def _locked_until(zone: ZoneRuntime) -> int:
+    snapshot = make_coordinator([zone])._build_snapshot()
+    return snapshot["zones"][zone.zone_id][const.ATTR_LOCKED_UNTIL]
+
+
+def test_lock_is_shown_while_min_run_holds_a_zone_that_wants_to_stop():
+    zone = make_zone(output=True, demand=False, last_switch_at=time.monotonic() - 60)
+
+    assert _locked_until(zone) > 0
+
+
+def test_lock_is_shown_while_min_off_holds_a_zone_that_wants_to_start():
+    zone = make_zone(output=False, demand=True, last_switch_at=time.monotonic() - 60)
+
+    assert _locked_until(zone) > 0
+
+
+def test_no_lock_is_shown_when_the_relay_already_does_what_is_wanted():
+    # Lowered, then raised again before min-run ended: nothing is being held back.
+    now = time.monotonic()
+    zone = make_zone(output=True, demand=True, last_switch_at=now - 60)
+    coordinator = make_coordinator([zone])
+
+    assert coordinator._apply_cycle_guards({"z1": True}, now) == {"z1": True}
+    assert _locked_until(zone) == 0
+
+
+def test_no_lock_is_shown_on_an_idle_zone():
+    zone = make_zone(output=False, demand=False, last_switch_at=time.monotonic() - 60)
+
+    assert _locked_until(zone) == 0

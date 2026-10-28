@@ -19,13 +19,15 @@ DOMAIN: Final = "openhydronic"
 MANUFACTURER: Final = "OpenHydronic"
 MODEL: Final = "ESP32 Hydronic Controller"
 # Kept in step with manifest.json by the release workflow.
-INTEGRATION_VERSION: Final = "1.2.2"
+INTEGRATION_VERSION: Final = "1.2.3"
 
 PLATFORMS: Final[list[str]] = ["climate", "sensor", "switch"]
 
 # Control loop. The coordinator is also state-change driven (local push), the
 # interval is only the safety heartbeat that lets timers expire deterministically.
 UPDATE_INTERVAL: Final = timedelta(seconds=15)
+# Taps on the card are answered at once; only a burst inside this window is merged.
+REFRESH_COOLDOWN: Final = 0.25
 STORAGE_VERSION: Final = 1
 STORAGE_KEY: Final = f"{DOMAIN}.metrics"
 

@@ -4,6 +4,38 @@ All notable changes to this integration are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [1.2.3] - 2026-10-28
+
+### Fixed
+
+- The card was slow to follow the buttons. Home Assistant lets a coordinator refresh
+  once every 10 seconds, so each tap on `-`, `+` or a preset showed up ten seconds
+  after the one before it, and a burst of taps took a minute to arrive. A tap is now
+  applied at once, and the card shows it straight away until the board confirms.
+  Repeated taps on `+` or `-` add up instead of all starting from the old value, and
+  the setpoint stays inside the zone's limits.
+- The card showed "minimum cycle" next to a zone whose relay was already doing what
+  was asked, for example after lowering the setpoint and raising it again. It now
+  shows the lock only while it holds the relay against the request. The relay itself
+  already behaved correctly.
+- A zone with a long name grew wider than the card. The grid no longer stretches and
+  the name wraps onto a second line.
+- A sensor that repeats the same temperature was counted as not updating after two
+  hours, because only a change of value reset the clock. A report of the same value
+  now counts.
+
+### Changed
+
+- The temperature sensor list offers `sensor` entities with the temperature class and
+  `input_number` helpers. It no longer offers `number` entities: a thermostat's
+  setpoints are numbers with the same name as its sensor, and choosing one made the zone
+  report a sensor that never updates. A zone already set to a `number` keeps working
+  until it is edited.
+- A sensor or relay fault now says on the card what to check and which entity it is
+  about, and where to pick another one.
+- The "Master disabled" pill reads "Pump not managed" and only shows while a zone is
+  asking for heat, since leaving the pump to something else is a valid setup.
+
 ## [1.2.2] - 2026-10-27
 
 ### Fixed

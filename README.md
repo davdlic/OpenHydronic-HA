@@ -62,7 +62,7 @@ boiler or circulator, and watches the sensors for silence.
 | Board | [OpenHydronic](https://github.com/davdlic/OpenHydronic) firmware, or any `switch`-like entity |
 | Published firmware | Home Assistant 2026.8 or newer, to adopt it in ESPHome without typing a key |
 | Password repair | Published firmware 1.3.0 or newer, which has the `Board Password` entity |
-| Sensors | One temperature sensor per zone (`sensor`, `number` or `input_number`) |
+| Sensors | One temperature sensor per zone (a `sensor` with the temperature class, or an `input_number`) |
 | Relay domains | `switch`, `input_boolean`, `light`, `fan`, `valve` |
 | Installation | HACS custom repository, or manual copy |
 

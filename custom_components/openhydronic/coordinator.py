@@ -29,6 +29,7 @@ from homeassistant.const import (
     STATE_UNKNOWN,
 )
 from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.event import (
     async_track_state_change_event,
     async_track_time_change,
@@ -84,6 +85,7 @@ from .const import (
     DEFAULT_MIN_OFF_TIME,
     DEFAULT_MIN_RUN_TIME,
     DEFAULT_SENSOR_TIMEOUT,
+    REFRESH_COOLDOWN,
     DOMAIN,
     FAULT_RELAY_MISSING,
     FAULT_SENSOR_MISSING,
@@ -233,6 +235,10 @@ class OpenHydronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER,
             name=f"{DOMAIN}_{entry.entry_id}",
             update_interval=UPDATE_INTERVAL,
+            # The default waits 10 s between refreshes, which made the card lag.
+            request_refresh_debouncer=Debouncer(
+                hass, _LOGGER, cooldown=REFRESH_COOLDOWN, immediate=True
+            ),
         )
         self.entry = entry
         self.zones: dict[str, ZoneRuntime] = {}
@@ -496,7 +502,9 @@ class OpenHydronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._notify_fault(zone, FAULT_SENSOR_MISSING)
             return
 
-        zone.sensor_age = (dt_util.utcnow() - sensor_state.last_updated).total_seconds()
+        # A steady sensor repeats its value: last_reported moves, last_updated does not.
+        last_seen = max(sensor_state.last_updated, sensor_state.last_reported)
+        zone.sensor_age = (dt_util.utcnow() - last_seen).total_seconds()
 
         if zone.sensor_age > self.sensor_timeout:
             zone.fault = FAULT_SENSOR_STALE
@@ -751,6 +759,8 @@ class OpenHydronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for zone_id, zone in self.zones.items():
             elapsed = now - zone.last_switch_at
             lock = self.min_run_time if zone.output else self.min_off_time
+            # Only a guard that holds the relay against what is wanted is a lock to show.
+            held = zone.fault is None and zone.demand != zone.output
             zones[zone_id] = {
                 "zone_id": zone_id,
                 "name": zone.name,
@@ -766,7 +776,7 @@ class OpenHydronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "relay_on": zone.relay_on,
                 ATTR_VALVE_STATE: self._valve_state(zone),
                 ATTR_FAULT: zone.fault,
-                ATTR_LOCKED_UNTIL: max(0, int(lock - elapsed)),
+                ATTR_LOCKED_UNTIL: max(0, int(lock - elapsed)) if held else 0,
                 ATTR_RUNTIME_HOURS: round(zone.runtime_seconds / 3600, 2),
                 ATTR_CYCLES: zone.cycles,
             }

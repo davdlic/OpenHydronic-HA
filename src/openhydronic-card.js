@@ -12,7 +12,7 @@
 // at page start, before its own elements exist.
 import { LitElement, html, css } from "lit";
 
-const CARD_VERSION = "1.2.2";
+const CARD_VERSION = "1.2.3";
 
 // Material Design Icons paths, inlined so the card works offline.
 const ICON_FIRE = "M17.66 11.2C17.43 10.9 17.15 10.64 16.89 10.38C16.22 9.78 15.46 9.35 14.82 8.72C13.33 7.26 13 4.85 13.95 3C13 3.23 12.17 3.75 11.46 4.32C8.87 6.4 7.85 10.07 9.07 13.22C9.11 13.32 9.15 13.42 9.15 13.55C9.15 13.77 9 13.97 8.8 14.05C8.57 14.15 8.33 14.09 8.14 13.93C8.08 13.88 8.04 13.83 8 13.76C6.87 12.33 6.69 10.28 7.45 8.64C5.78 10 4.87 12.3 5 14.47C5.06 14.97 5.12 15.47 5.29 15.97C5.43 16.57 5.7 17.17 6 17.7C7.08 19.43 8.95 20.67 10.96 20.92C13.1 21.19 15.39 20.8 17.03 19.32C18.86 17.66 19.5 15 18.56 12.72L18.43 12.46C18.22 12 17.66 11.2 17.66 11.2M14.5 17.5C14.22 17.74 13.76 18 13.4 18.1C12.28 18.5 11.16 17.94 10.5 17.28C11.69 17 12.4 16.12 12.61 15.23C12.78 14.43 12.46 13.77 12.33 13C12.21 12.26 12.23 11.63 12.5 10.94C12.69 11.32 12.89 11.7 13.13 12C13.9 13 15.11 13.44 15.37 14.8C15.41 14.94 15.43 15.08 15.43 15.23C15.46 16.05 15.1 16.95 14.5 17.5H14.5Z";
@@ -20,6 +20,9 @@ const ICON_FIRE_OFF = "M22.11 21.46L2.39 1.73L1.11 3L7.09 9C5.66 10.36 4.88 12.4
 const ICON_ALERT = "M12,2L1,21H23M12,6L19.53,19H4.47M11,10V14H13V10M11,16V18H13V16";
 
 const PRESETS = ["comfort", "eco", "away"];
+
+// A tap shows at once; the board value replaces it when Home Assistant confirms or this runs out.
+const PENDING_MS = 4000;
 
 const VALVE_COLORS = {
   closed: "var(--oh-valve-closed)",
@@ -54,8 +57,16 @@ const LABELS = {
       sensor_missing: "Sensor unavailable",
       relay_missing: "Relay unavailable",
     },
+    fix: {
+      sensor_stale:
+        "The sensor has stopped reporting. Check it, or pick another in Configure -> Edit zone.",
+      sensor_missing:
+        "The sensor is unavailable. Check it, or pick another in Configure -> Edit zone.",
+      relay_missing:
+        "The relay is unavailable. Check the board, or pick another relay in Configure -> Edit zone.",
+    },
     master: {
-      disabled: "Master disabled",
+      disabled: "Pump not managed",
       off: "Master off",
       waiting: "Thermal delay...",
       on: "Circulator running",
@@ -94,8 +105,16 @@ const LABELS = {
       sensor_missing: "Sensor indisponível",
       relay_missing: "Relé indisponível",
     },
+    fix: {
+      sensor_stale:
+        "O sensor deixou de comunicar. Verifique-o, ou escolha outro em Configurar -> Edit zone.",
+      sensor_missing:
+        "O sensor está indisponível. Verifique-o, ou escolha outro em Configurar -> Edit zone.",
+      relay_missing:
+        "O relé está indisponível. Verifique a placa, ou escolha outro relé em Configurar -> Edit zone.",
+    },
     master: {
-      disabled: "Master desativado",
+      disabled: "Bomba não gerida",
       off: "Master desligado",
       waiting: "Delay térmico…",
       on: "Circulador ativo",
@@ -118,7 +137,51 @@ function labels(language) {
 
 class OpenHydronicCard extends LitElement {
   static get properties() {
-    return { hass: {}, _config: {} };
+    return { hass: {}, _config: {}, _pending: { state: true } };
+  }
+
+  constructor() {
+    super();
+    this._pending = {};
+  }
+
+  /** Drop what the board already shows, so a later change from elsewhere is not hidden. */
+  willUpdate(changed) {
+    if (!changed.has("hass") || !this.hass) return;
+    const ids = Object.keys(this._pending);
+    if (!ids.length) return;
+    const next = {};
+    for (const id of ids) {
+      const p = this._pending[id];
+      const s = this.hass.states[id];
+      const done =
+        !s ||
+        Date.now() > p.until ||
+        ((p.temperature === undefined || s.attributes.temperature === p.temperature) &&
+          (p.preset === undefined || s.attributes.preset_mode === p.preset));
+      if (!done) next[id] = p;
+    }
+    if (Object.keys(next).length !== ids.length) this._pending = next;
+  }
+
+  /** Setpoint and preset to show: the tap still in flight, else the board's. */
+  _view(zone) {
+    const a = zone.attributes;
+    const p = this._pending[zone.entity_id];
+    const live = p && Date.now() <= p.until;
+    return {
+      temperature: live && p.temperature !== undefined ? p.temperature : a.temperature,
+      preset: live && p.preset !== undefined ? p.preset : a.preset_mode,
+    };
+  }
+
+  _remember(zone, change) {
+    const id = zone.entity_id;
+    this._pending = {
+      ...this._pending,
+      [id]: { ...this._pending[id], ...change, until: Date.now() + PENDING_MS },
+    };
+    setTimeout(() => this.requestUpdate(), PENDING_MS + 50);
   }
 
   static getStubConfig(hass) {
@@ -188,6 +251,9 @@ class OpenHydronicCard extends LitElement {
     const holiday = this._findEntity("switch", "holiday_mode");
     const purge = this._findEntity("switch", "air_purge");
     const master = this._findEntity("sensor", "master_state");
+    // Not managing the pump is a choice, so say so only while a zone is asking for heat.
+    const showMaster =
+      master && (master.state !== "disabled" || zones.some((z) => z.attributes.demand));
     const systemMode = zones.length
       ? zones[0].attributes.system_mode
       : undefined;
@@ -200,7 +266,7 @@ class OpenHydronicCard extends LitElement {
             <span>${this._config.title}</span>
           </div>
           <div class="status">
-            ${master
+            ${showMaster
               ? html`<span class="pill master ${master.state}">
                   ${l.master[master.state] || master.state}
                 </span>`
@@ -262,9 +328,10 @@ class OpenHydronicCard extends LitElement {
       a.current_temperature !== undefined && a.current_temperature !== null
         ? Number(a.current_temperature).toFixed(1)
         : "--";
+    const view = this._view(zone);
     const target =
-      a.temperature !== undefined && a.temperature !== null
-        ? Number(a.temperature).toFixed(1)
+      view.temperature !== undefined && view.temperature !== null
+        ? Number(view.temperature).toFixed(1)
         : "--";
     const locked = a.locked_until > 0;
     const open = () => this._moreInfo(zone.entity_id);
@@ -276,7 +343,7 @@ class OpenHydronicCard extends LitElement {
             ${this._valveIcon(valve)}
           </div>
           <div class="name" @click=${open}>
-            ${a.friendly_name || zone.entity_id}
+            <span class="label">${a.friendly_name || zone.entity_id}</span>
             ${a.is_bypass ? html`<span class="tag">bypass</span>` : ""}
           </div>
           ${fault
@@ -288,6 +355,15 @@ class OpenHydronicCard extends LitElement {
                 </span>`
               : ""}
         </div>
+
+        ${fault && l.fix[fault]
+          ? html`<div class="hint">
+              ${l.fix[fault]}
+              <code>
+                ${fault === "relay_missing" ? a.relay_entity : a.sensor_entity}
+              </code>
+            </div>`
+          : ""}
 
         ${a.is_bypass
           ? ""
@@ -317,8 +393,8 @@ class OpenHydronicCard extends LitElement {
                 ${PRESETS.map(
                   (key) => html`
                     <button
-                      class=${a.preset_mode === key ? "on" : ""}
-                      aria-pressed=${a.preset_mode === key ? "true" : "false"}
+                      class=${view.preset === key ? "on" : ""}
+                      aria-pressed=${view.preset === key ? "true" : "false"}
                       @click=${() => this._preset(zone, key)}
                     >
                       ${l.presets[key]}
@@ -368,14 +444,22 @@ class OpenHydronicCard extends LitElement {
   }
 
   _nudge(zone, delta) {
-    const base = Number(zone.attributes.temperature ?? 20);
+    const a = zone.attributes;
+    const base = Number(this._view(zone).temperature ?? 20);
+    const lo = Number(a.min_temp ?? 5);
+    const hi = Number(a.max_temp ?? 30);
+    const temperature = Math.min(hi, Math.max(lo, Math.round((base + delta) * 2) / 2));
+    // A manual setpoint leaves the presets, which is what the board will report.
+    this._remember(zone, { temperature, preset: "none" });
     this.hass.callService("climate", "set_temperature", {
       entity_id: zone.entity_id,
-      temperature: Math.round((base + delta) * 2) / 2,
+      temperature,
     });
   }
 
   _preset(zone, preset) {
+    // The preset's own setpoint is not known here, so the board's value is shown for it.
+    this._remember(zone, { preset, temperature: undefined });
     this.hass.callService("climate", "set_preset_mode", {
       entity_id: zone.entity_id,
       preset_mode: preset,
@@ -491,6 +575,7 @@ class OpenHydronicCard extends LitElement {
 
       .zones {
         display: grid;
+        grid-template-columns: minmax(0, 1fr);
         gap: 10px;
       }
       .zone {
@@ -548,9 +633,29 @@ class OpenHydronicCard extends LitElement {
         align-items: center;
         gap: 6px;
         overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
         cursor: pointer;
+      }
+      .name .label {
+        min-width: 0;
+        overflow: hidden;
+        overflow-wrap: anywhere;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+      }
+      .hint {
+        margin-top: 8px;
+        font-size: 0.78rem;
+        line-height: 1.35;
+        opacity: 0.85;
+      }
+      .hint code {
+        display: block;
+        margin-top: 2px;
+        font-size: 0.72rem;
+        opacity: 0.7;
+        overflow-wrap: anywhere;
       }
       .tag {
         font-size: 0.65rem;

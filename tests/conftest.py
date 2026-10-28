@@ -87,6 +87,7 @@ def _install() -> None:
         async_track_time_change=lambda *args, **kwargs: (lambda: None),
     )
     _module("homeassistant.helpers.storage", Store=MagicMock())
+    _module("homeassistant.helpers.debounce", Debouncer=MagicMock())
     _module(
         "homeassistant.helpers.update_coordinator",
         DataUpdateCoordinator=_DataUpdateCoordinator,
