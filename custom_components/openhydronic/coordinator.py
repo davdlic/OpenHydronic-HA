@@ -455,7 +455,10 @@ class OpenHydronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._anti_seize_until = None
 
     def _read_zone_inputs(self, zone: ZoneRuntime) -> None:
-        """Refresh measured values and raise/clear the sensor watchdog fault."""
+        """Refresh measured values and raise/clear the zone's fault."""
+        # The room sensor does not depend on the board, so it is read first.
+        sensor_fault = self._read_sensor(zone)
+
         relay_state = self.hass.states.get(zone.relay_entity)
         if relay_state is None or relay_state.state == STATE_UNAVAILABLE:
             zone.relay_on = False
@@ -471,17 +474,19 @@ class OpenHydronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             zone.last_seen_on = zone.relay_on
             zone.synced = True
 
+        if sensor_fault is None:
+            self._clear_fault(zone)
+        else:
+            self._notify_fault(zone, sensor_fault)
+        zone.fault = sensor_fault
+
+    def _read_sensor(self, zone: ZoneRuntime) -> str | None:
+        """Refresh the room temperature and return the sensor's fault, if any."""
         if not zone.sensor_entity:
             # Bypass loops legitimately have no room sensor.
             zone.current_temp = None
             zone.sensor_age = None
-            if zone.is_bypass:
-                self._clear_fault(zone)
-                zone.fault = None
-            else:
-                zone.fault = FAULT_SENSOR_MISSING
-                self._notify_fault(zone, FAULT_SENSOR_MISSING)
-            return
+            return None if zone.is_bypass else FAULT_SENSOR_MISSING
 
         sensor_state = self.hass.states.get(zone.sensor_entity)
         if sensor_state is None or sensor_state.state in (
@@ -490,28 +495,18 @@ class OpenHydronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         ):
             zone.current_temp = None
             zone.sensor_age = None
-            zone.fault = FAULT_SENSOR_MISSING
-            self._notify_fault(zone, FAULT_SENSOR_MISSING)
-            return
+            return FAULT_SENSOR_MISSING
 
         try:
             zone.current_temp = float(sensor_state.state)
         except (TypeError, ValueError):
             zone.current_temp = None
-            zone.fault = FAULT_SENSOR_MISSING
-            self._notify_fault(zone, FAULT_SENSOR_MISSING)
-            return
+            return FAULT_SENSOR_MISSING
 
         # A steady sensor repeats its value: last_reported moves, last_updated does not.
         last_seen = max(sensor_state.last_updated, sensor_state.last_reported)
         zone.sensor_age = (dt_util.utcnow() - last_seen).total_seconds()
-
-        if zone.sensor_age > self.sensor_timeout:
-            zone.fault = FAULT_SENSOR_STALE
-            self._notify_fault(zone, FAULT_SENSOR_STALE)
-        else:
-            self._clear_fault(zone)
-            zone.fault = None
+        return FAULT_SENSOR_STALE if zone.sensor_age > self.sensor_timeout else None
 
     def _evaluate_demand(self) -> dict[str, bool]:
         """Hysteresis band, plus every override that can veto heat."""

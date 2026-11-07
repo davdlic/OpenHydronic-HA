@@ -4,6 +4,16 @@ All notable changes to this integration are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [1.2.5] - 2026-11-07
+
+### Fixed
+
+- A zone whose relay was unavailable, as it is while the board is offline, showed no
+  room temperature. The sensor was not read once the relay fault was raised, so after a
+  restart of Home Assistant the card and the thermostat stayed empty although the sensor
+  was fine. The sensor is now read first. The relay fault still decides the notice and
+  keeps the zone from heating, and a sensor fault is raised once the relay is back.
+
 ## [1.2.4] - 2026-11-07
 
 ### Fixed

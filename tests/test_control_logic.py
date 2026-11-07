@@ -1,9 +1,9 @@
 # OpenHydronic-HA - Home Assistant integration + Lovelace card for OpenHydronic
 # Copyright (C) 2026 David Lopes (https://github.com/davdlic)
 # Licensed under the GNU General Public License v3.0 - see LICENSE
-"""Unit tests for the decision core.
+"""Unit tests for the decision core and for how a zone's inputs are read.
 
-The methods under test are pure: they read zones and options and return the
+The methods under test read zones, options and a few states and return the
 wanted relay states, so they run without a Home Assistant instance.
 """
 
@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import time
 import types
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -339,3 +340,114 @@ def test_no_lock_is_shown_on_an_idle_zone():
     zone = make_zone(output=False, demand=False, last_switch_at=time.monotonic() - 60)
 
     assert _locked_until(zone) == 0
+
+
+# ---------------------------------------------------------------------------
+# Zone inputs
+# ---------------------------------------------------------------------------
+def _state(value: str, age: int = 0):
+    seen = datetime.now(timezone.utc) - timedelta(seconds=age)
+    return types.SimpleNamespace(state=value, last_updated=seen, last_reported=seen)
+
+
+def _read_inputs(zone: ZoneRuntime, states: dict):
+    coordinator = make_coordinator([zone])
+    coordinator.hass = types.SimpleNamespace(
+        states=types.SimpleNamespace(get=states.get),
+        config=types.SimpleNamespace(language="en"),
+    )
+    coordinator._notified_faults = set()
+    coordinator._read_zone_inputs(zone)
+    return coordinator
+
+
+def test_room_temperature_is_read_while_the_relay_is_unavailable():
+    # The sensor does not depend on the board.
+    zone = make_zone()
+
+    _read_inputs(zone, {"switch.z1": _state("unavailable"), "sensor.z1": _state("19.5")})
+
+    assert zone.current_temp == 19.5
+    assert zone.fault == const.FAULT_RELAY_MISSING
+
+
+def test_room_temperature_is_read_while_the_relay_entity_is_missing():
+    zone = make_zone()
+
+    _read_inputs(zone, {"sensor.z1": _state("19.5")})
+
+    assert zone.current_temp == 19.5
+    assert zone.fault == const.FAULT_RELAY_MISSING
+
+
+def test_a_relay_fault_still_holds_back_heat_on_a_cold_room():
+    zone = make_zone()
+
+    coordinator = _read_inputs(
+        zone, {"switch.z1": _state("unavailable"), "sensor.z1": _state("12.0")}
+    )
+
+    assert coordinator._evaluate_demand() == {"z1": False}
+
+
+def test_the_relay_fault_wins_over_a_sensor_fault():
+    zone = make_zone()
+
+    coordinator = _read_inputs(
+        zone, {"switch.z1": _state("unavailable"), "sensor.z1": _state("unavailable")}
+    )
+
+    assert zone.current_temp is None
+    assert zone.fault == const.FAULT_RELAY_MISSING
+    assert coordinator._notified_faults == {"z1:relay_missing"}
+
+
+def test_an_unavailable_sensor_is_a_fault_when_the_relay_is_fine():
+    zone = make_zone(current_temp=19.5)
+
+    _read_inputs(zone, {"switch.z1": _state("off"), "sensor.z1": _state("unavailable")})
+
+    assert zone.current_temp is None
+    assert zone.fault == const.FAULT_SENSOR_MISSING
+
+
+def test_a_sensor_silent_past_the_watchdog_is_stale_but_still_shown():
+    zone = make_zone()
+    age = const.DEFAULT_SENSOR_TIMEOUT + 100
+
+    _read_inputs(zone, {"switch.z1": _state("off"), "sensor.z1": _state("19.5", age)})
+
+    assert zone.current_temp == 19.5
+    assert zone.fault == const.FAULT_SENSOR_STALE
+
+
+def test_healthy_inputs_clear_an_earlier_fault():
+    zone = make_zone(fault=const.FAULT_SENSOR_STALE)
+
+    coordinator = _read_inputs(
+        zone, {"switch.z1": _state("off"), "sensor.z1": _state("19.5")}
+    )
+
+    assert zone.fault is None
+    assert coordinator._notified_faults == set()
+
+
+def test_a_zone_without_a_sensor_is_a_fault_unless_it_is_a_bypass():
+    states = {"switch.z1": _state("off")}
+    zone = make_zone(sensor_entity=None)
+    bypass = make_zone(sensor_entity=None, is_bypass=True)
+
+    _read_inputs(zone, states)
+    _read_inputs(bypass, states)
+
+    assert zone.fault == const.FAULT_SENSOR_MISSING
+    assert bypass.fault is None
+
+
+def test_the_relay_is_adopted_on_the_first_read():
+    zone = make_zone()
+
+    _read_inputs(zone, {"switch.z1": _state("on"), "sensor.z1": _state("19.5")})
+
+    assert zone.synced
+    assert zone.relay_on and zone.output
