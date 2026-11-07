@@ -4,6 +4,31 @@ All notable changes to this integration are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [1.2.4] - 2026-11-07
+
+### Fixed
+
+- The Summer, Holiday and Purge buttons could drive the board's own switch of the same
+  name instead of the integration's. With a board that has its own Summer mode, the
+  button turned the board's mode on, the board then refused to open the relay, and the
+  zone showed heating while the relay stayed off. The card now picks the integration's
+  switch.
+
+- On a narrow screen the `+` button stuck out of the zone and the name was squeezed
+  to a letter or two by the notice. The notice now sits under the name on a narrow
+  card and beside it on a wide one, and the temperature row wraps when it does not fit.
+
+### Changed
+
+- On a wide card the zones flow into columns instead of one long stack: one column on a
+  phone, two from about 700 px, three from about 1050 px. The Summer, Holiday and Purge
+  buttons no longer stretch across a wide card.
+- The minimum cycle notice says what will happen: "Closes in 7 min" when the zone no
+  longer needs heat, "Opens in 3 min" when it does.
+- The master pill ("Pump not managed", "Circulator running", "Thermal delay") is gone
+  from the card. It was installer detail that raised questions. The master state sensor
+  is still there for dashboards and automations.
+
 ## [1.2.3] - 2026-10-28
 
 ### Fixed

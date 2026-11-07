@@ -213,8 +213,13 @@ Each zone shows its valve, the current temperature and the target, with `-` and 
 side of the target (0.5 °C a step) and three buttons for the presets: Comfort, Eco and Away. The
 lit button is the preset in force. A target set by hand leaves none lit, and a tap on a button puts
 the zone back on that preset. Tapping the name or the temperature opens the zone's details. The
-minimum cycle countdown and any fault appear to the right of the name. The controls are sized for
-a phone.
+minimum cycle countdown ("Closes in 7 min", "Opens in 3 min") and any fault appear beside the
+name, or under it on a narrow card. The controls are sized for a phone.
+
+The zones flow into columns as the card gets wider: one on a phone, two from about 700 px, and
+so on. Home Assistant limits a card to about 500 px in a Masonry view, and in a single column of
+a Sections view, so to see more than one column use a **Panel** view, or give the section a wider
+*column span* in a Sections view.
 
 Valve states, matching what the coordinator decided:
 

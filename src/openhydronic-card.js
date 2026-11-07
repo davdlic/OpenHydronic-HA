@@ -12,7 +12,7 @@
 // at page start, before its own elements exist.
 import { LitElement, html, css } from "lit";
 
-const CARD_VERSION = "1.2.3";
+const CARD_VERSION = "1.2.4";
 
 // Material Design Icons paths, inlined so the card works offline.
 const ICON_FIRE = "M17.66 11.2C17.43 10.9 17.15 10.64 16.89 10.38C16.22 9.78 15.46 9.35 14.82 8.72C13.33 7.26 13 4.85 13.95 3C13 3.23 12.17 3.75 11.46 4.32C8.87 6.4 7.85 10.07 9.07 13.22C9.11 13.32 9.15 13.42 9.15 13.55C9.15 13.77 9 13.97 8.8 14.05C8.57 14.15 8.33 14.09 8.14 13.93C8.08 13.88 8.04 13.83 8 13.76C6.87 12.33 6.69 10.28 7.45 8.64C5.78 10 4.87 12.3 5 14.47C5.06 14.97 5.12 15.47 5.29 15.97C5.43 16.57 5.7 17.17 6 17.7C7.08 19.43 8.95 20.67 10.96 20.92C13.1 21.19 15.39 20.8 17.03 19.32C18.86 17.66 19.5 15 18.56 12.72L18.43 12.46C18.22 12 17.66 11.2 17.66 11.2M14.5 17.5C14.22 17.74 13.76 18 13.4 18.1C12.28 18.5 11.16 17.94 10.5 17.28C11.69 17 12.4 16.12 12.61 15.23C12.78 14.43 12.46 13.77 12.33 13C12.21 12.26 12.23 11.63 12.5 10.94C12.69 11.32 12.89 11.7 13.13 12C13.9 13 15.11 13.44 15.37 14.8C15.41 14.94 15.43 15.08 15.43 15.23C15.46 16.05 15.1 16.95 14.5 17.5H14.5Z";
@@ -46,7 +46,8 @@ const LABELS = {
     raise: "Raise the setpoint",
     presets: { comfort: "Comfort", eco: "Eco", away: "Away" },
     purge_left: (min) => `Purge ${min} min`,
-    min_cycle: (min) => `minimum cycle ${min} min`,
+    closes_in: (min) => `Closes in ${min} min`,
+    opens_in: (min) => `Opens in ${min} min`,
     metrics: (hours, cycles) => `${hours} h - ${cycles} cycles`,
     editor_title: "Title",
     editor_zones: "Zones (empty = auto-detect)",
@@ -64,13 +65,6 @@ const LABELS = {
         "The sensor is unavailable. Check it, or pick another in Configure -> Edit zone.",
       relay_missing:
         "The relay is unavailable. Check the board, or pick another relay in Configure -> Edit zone.",
-    },
-    master: {
-      disabled: "Pump not managed",
-      off: "Master off",
-      waiting: "Thermal delay...",
-      on: "Circulator running",
-      purging: "Purging heat...",
     },
     system: {
       normal: "Normal",
@@ -94,7 +88,8 @@ const LABELS = {
     raise: "Subir a temperatura",
     presets: { comfort: "Conforto", eco: "Eco", away: "Ausente" },
     purge_left: (min) => `Purga ${min} min`,
-    min_cycle: (min) => `ciclo mínimo ${min} min`,
+    closes_in: (min) => `Fecha em ${min} min`,
+    opens_in: (min) => `Abre em ${min} min`,
     metrics: (hours, cycles) => `${hours} h - ${cycles} ciclos`,
     editor_title: "Título",
     editor_zones: "Zonas (vazio = deteção automática)",
@@ -112,13 +107,6 @@ const LABELS = {
         "O sensor está indisponível. Verifique-o, ou escolha outro em Configurar -> Edit zone.",
       relay_missing:
         "O relé está indisponível. Verifique a placa, ou escolha outro relé em Configurar -> Edit zone.",
-    },
-    master: {
-      disabled: "Bomba não gerida",
-      off: "Master desligado",
-      waiting: "Delay térmico…",
-      on: "Circulador ativo",
-      purging: "Purga térmica…",
     },
     system: {
       normal: "Normal",
@@ -236,9 +224,12 @@ class OpenHydronicCard extends LitElement {
   /** Find a companion entity (switch/sensor) created by the integration. */
   _findEntity(domain, suffix) {
     if (this._config[suffix]) return this.hass.states[this._config[suffix]];
-    const id = Object.keys(this.hass.states).find(
+    const ids = Object.keys(this.hass.states).filter(
       (e) => e.startsWith(`${domain}.`) && e.includes(suffix)
     );
+    // The board has switches of the same name; the card drives the integration's.
+    const own = ids.find((e) => this.hass.entities?.[e]?.platform === "openhydronic");
+    const id = own || ids[0];
     return id ? this.hass.states[id] : undefined;
   }
 
@@ -250,10 +241,6 @@ class OpenHydronicCard extends LitElement {
     const summer = this._findEntity("switch", "summer_mode");
     const holiday = this._findEntity("switch", "holiday_mode");
     const purge = this._findEntity("switch", "air_purge");
-    const master = this._findEntity("sensor", "master_state");
-    // Not managing the pump is a choice, so say so only while a zone is asking for heat.
-    const showMaster =
-      master && (master.state !== "disabled" || zones.some((z) => z.attributes.demand));
     const systemMode = zones.length
       ? zones[0].attributes.system_mode
       : undefined;
@@ -266,11 +253,6 @@ class OpenHydronicCard extends LitElement {
             <span>${this._config.title}</span>
           </div>
           <div class="status">
-            ${showMaster
-              ? html`<span class="pill master ${master.state}">
-                  ${l.master[master.state] || master.state}
-                </span>`
-              : ""}
             ${systemMode && systemMode !== "normal"
               ? html`<span class="pill mode">
                   ${l.system[systemMode] || systemMode}
@@ -342,18 +324,20 @@ class OpenHydronicCard extends LitElement {
           <div class="valve ${valve}" @click=${open} title=${l.fault[fault] || valve}>
             ${this._valveIcon(valve)}
           </div>
-          <div class="name" @click=${open}>
-            <span class="label">${a.friendly_name || zone.entity_id}</span>
-            ${a.is_bypass ? html`<span class="tag">bypass</span>` : ""}
+          <div class="who">
+            <div class="name" @click=${open}>
+              <span class="label">${a.friendly_name || zone.entity_id}</span>
+              ${a.is_bypass ? html`<span class="tag">bypass</span>` : ""}
+            </div>
+            ${fault
+              ? html`<span class="notice fault">${l.fault[fault] || fault}</span>`
+              : locked
+                ? html`<span class="notice">
+                    <ha-icon icon="mdi:lock-clock"></ha-icon>
+                    ${(a.demand ? l.opens_in : l.closes_in)(Math.ceil(a.locked_until / 60))}
+                  </span>`
+                : ""}
           </div>
-          ${fault
-            ? html`<span class="notice fault">${l.fault[fault] || fault}</span>`
-            : locked
-              ? html`<span class="notice">
-                  <ha-icon icon="mdi:lock-clock"></ha-icon>
-                  ${l.min_cycle(Math.ceil(a.locked_until / 60))}
-                </span>`
-              : ""}
         </div>
 
         ${fault && l.fix[fault]
@@ -531,20 +515,12 @@ class OpenHydronicCard extends LitElement {
         border: 1px solid var(--oh-glass-border);
         white-space: nowrap;
       }
-      .pill.master.on,
-      .pill.master.purging {
-        color: var(--oh-valve-open);
-        border-color: var(--oh-valve-open);
-      }
-      .pill.master.waiting {
-        color: var(--oh-valve-opening);
-        border-color: var(--oh-valve-opening);
-        animation: pulse 1.6s ease-in-out infinite;
-      }
 
       .globals {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+        /* Keep three buttons from stretching across a wide card. */
+        max-width: 600px;
         gap: 8px;
         margin-bottom: 16px;
       }
@@ -575,11 +551,14 @@ class OpenHydronicCard extends LitElement {
 
       .zones {
         display: grid;
-        grid-template-columns: minmax(0, 1fr);
+        /* One column on a phone, more as the card gets wider. */
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+        align-items: start;
         gap: 10px;
       }
       .zone {
         padding: 14px;
+        container-type: inline-size;
         border-radius: 16px;
         background: var(--oh-glass-bg);
         border: 1px solid var(--oh-glass-border);
@@ -624,9 +603,30 @@ class OpenHydronicCard extends LitElement {
       .valve.open .halo {
         opacity: 0.22;
       }
-      .name {
+      .who {
         flex: 1;
         min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      /* Room for the notice beside the name; below that it goes under it. */
+      @container (min-width: 380px) {
+        .who {
+          flex-direction: row;
+          align-items: center;
+          gap: 8px;
+        }
+        .who .name {
+          flex: 1;
+        }
+        .who .notice {
+          max-width: 55%;
+        }
+      }
+      .name {
+        max-width: 100%;
         font-weight: 600;
         font-size: 1.05rem;
         display: flex;
@@ -671,7 +671,7 @@ class OpenHydronicCard extends LitElement {
         align-items: center;
         gap: 4px;
         flex: none;
-        max-width: 55%;
+        max-width: 100%;
         font-size: 0.72rem;
         font-weight: 500;
         padding: 3px 9px;
@@ -695,6 +695,7 @@ class OpenHydronicCard extends LitElement {
         display: flex;
         align-items: center;
         justify-content: space-between;
+        flex-wrap: wrap;
         gap: 8px;
         margin-top: 12px;
       }
@@ -720,9 +721,10 @@ class OpenHydronicCard extends LitElement {
         display: flex;
         align-items: center;
         gap: 6px;
+        margin-left: auto;
       }
       .stepper .set {
-        min-width: 84px;
+        min-width: 3.6rem;
         text-align: center;
         font-size: 1.55rem;
         font-weight: 600;
@@ -785,8 +787,7 @@ class OpenHydronicCard extends LitElement {
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .valve.opening svg,
-        .pill.master.waiting {
+        .valve.opening svg {
           animation: none;
         }
       }
