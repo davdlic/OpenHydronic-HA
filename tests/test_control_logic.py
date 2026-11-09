@@ -12,10 +12,13 @@ from __future__ import annotations
 import time
 import types
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 import pytest
 
 # conftest.py installs the Home Assistant stand-ins before this import.
+from homeassistant.components import persistent_notification
+
 from custom_components.openhydronic import const
 from custom_components.openhydronic.coordinator import (
     COLD_START_AGE,
@@ -357,7 +360,11 @@ def _read_inputs(zone: ZoneRuntime, states: dict):
         config=types.SimpleNamespace(language="en"),
     )
     coordinator._notified_faults = set()
-    coordinator._read_zone_inputs(zone)
+    # A fault posts a notification, which needs a real hass under Home Assistant.
+    with patch.object(persistent_notification, "async_create"), patch.object(
+        persistent_notification, "async_dismiss"
+    ):
+        coordinator._read_zone_inputs(zone)
     return coordinator
 
 
