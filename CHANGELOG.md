@@ -4,6 +4,25 @@ All notable changes to this integration are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+## [1.3.0] - 2026-11-11
+
+### Added
+
+- **Proportional control, per zone (experimental).** Under Configure → Edit zone, a zone can
+  now be set to *Proportional* instead of *Hysteresis*. Instead of opening at one temperature
+  and closing at another, the valve is open for a share of every cycle that grows with how far
+  the room is below the setpoint, plus a slow correction the zone learns for its own floor. A
+  slow floor no longer overshoots and then cools for hours. The minimum ON and OFF times still
+  apply to every pulse.
+- **Floor type**, for proportional zones: *I don't know* (60 minute cycle, the safe choice) or
+  *Traditional screed* (90 minute cycle).
+- `sensor.<zone>_valve_duty`, the share of the cycle the valve is asked to be open, for the
+  proportional zones.
+
+Nothing changes for an existing zone: it has no control mode saved, and that means hysteresis.
+
 ## [1.2.5] - 2026-11-07
 
 ### Fixed

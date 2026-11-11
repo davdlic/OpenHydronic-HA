@@ -49,8 +49,10 @@ from .const import (
     CONF_ANTI_SEIZE_WEEKDAY,
     CONF_AWAY_TEMP,
     CONF_COMFORT_TEMP,
+    CONF_CONTROL_MODE,
     CONF_DEVICE_NAME,
     CONF_ECO_TEMP,
+    CONF_FLOOR_TYPE,
     CONF_FW_VERSION,
     CONF_HEAT_PURGE_DELAY,
     CONF_HOST,
@@ -71,6 +73,7 @@ from .const import (
     CONF_ZONE_ID,
     CONF_ZONE_NAME,
     CONF_ZONES,
+    CONTROL_MODES,
     DEFAULT_AIR_PURGE_DURATION,
     DEFAULT_ANTI_SEIZE_DURATION,
     DEFAULT_ANTI_SEIZE_HOUR,
@@ -78,7 +81,9 @@ from .const import (
     DEFAULT_ANTI_SEIZE_WEEKDAY,
     DEFAULT_AWAY_TEMP,
     DEFAULT_COMFORT_TEMP,
+    DEFAULT_CONTROL_MODE,
     DEFAULT_ECO_TEMP,
+    DEFAULT_FLOOR_TYPE,
     DEFAULT_HEAT_PURGE_DELAY,
     DEFAULT_HYSTERESIS,
     DEFAULT_MASTER_START_DELAY,
@@ -86,6 +91,7 @@ from .const import (
     DEFAULT_MIN_RUN_TIME,
     DEFAULT_SENSOR_TIMEOUT,
     DOMAIN,
+    FLOOR_TYPES,
     MASTER_CHOICE_BOARD,
     MASTER_CHOICE_ENTITY,
     MASTER_CHOICE_NONE,
@@ -154,6 +160,16 @@ def _seconds_selector(minimum: int, maximum: int) -> selector.NumberSelector:
     )
 
 
+def _choice_selector(options: list[str], translation_key: str) -> selector.SelectSelector:
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=options,
+            translation_key=translation_key,
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
 def _zone_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     defaults = defaults or {}
     return vol.Schema(
@@ -176,6 +192,14 @@ def _zone_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             vol.Optional(
                 CONF_AWAY_TEMP, default=defaults.get(CONF_AWAY_TEMP, DEFAULT_AWAY_TEMP)
             ): _temp_selector(),
+            vol.Optional(
+                CONF_CONTROL_MODE,
+                default=defaults.get(CONF_CONTROL_MODE, DEFAULT_CONTROL_MODE),
+            ): _choice_selector(CONTROL_MODES, CONF_CONTROL_MODE),
+            vol.Optional(
+                CONF_FLOOR_TYPE,
+                default=defaults.get(CONF_FLOOR_TYPE, DEFAULT_FLOOR_TYPE),
+            ): _choice_selector(FLOOR_TYPES, CONF_FLOOR_TYPE),
             vol.Optional(
                 CONF_IS_BYPASS, default=defaults.get(CONF_IS_BYPASS, False)
             ): selector.BooleanSelector(),

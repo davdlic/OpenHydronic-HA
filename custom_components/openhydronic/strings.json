@@ -184,7 +184,13 @@
           "comfort_temp": "Comfort setpoint",
           "eco_temp": "Eco setpoint",
           "away_temp": "Away setpoint",
-          "is_bypass": "This is the bypass loop"
+          "is_bypass": "This is the bypass loop",
+          "control_mode": "Control mode",
+          "floor_type": "Floor type (proportional only)"
+        },
+        "data_description": {
+          "control_mode": "Hysteresis opens the valve when the room is cold and closes it when it warms up. Proportional (experimental) opens it for a share of each cycle that follows how far the room is from the setpoint, which suits underfloor heating. It works best with a sensor that reports every 0.2 °C or less.",
+          "floor_type": "How slow the floor is. Choose Traditional screed if the pipes sit in a thick layer of cement. If you are not sure, leave it on I don't know."
         }
       },
       "edit_zone": {
@@ -202,7 +208,13 @@
           "comfort_temp": "Comfort setpoint",
           "eco_temp": "Eco setpoint",
           "away_temp": "Away setpoint",
-          "is_bypass": "This is the bypass loop"
+          "is_bypass": "This is the bypass loop",
+          "control_mode": "Control mode",
+          "floor_type": "Floor type (proportional only)"
+        },
+        "data_description": {
+          "control_mode": "Hysteresis opens the valve when the room is cold and closes it when it warms up. Proportional (experimental) opens it for a share of each cycle that follows how far the room is from the setpoint, which suits underfloor heating. It works best with a sensor that reports every 0.2 °C or less.",
+          "floor_type": "How slow the floor is. Choose Traditional screed if the pipes sit in a thick layer of cement. If you are not sure, leave it on I don't know."
         }
       },
       "remove_zone": {
@@ -366,6 +378,18 @@
         "none": "None",
         "board": "The board switches it",
         "entity": "Another switch in Home Assistant"
+      }
+    },
+    "control_mode": {
+      "options": {
+        "hysteresis": "Hysteresis (default)",
+        "proportional": "Proportional (experimental)"
+      }
+    },
+    "floor_type": {
+      "options": {
+        "unknown": "I don't know",
+        "traditional": "Traditional screed (thick, cement)"
       }
     }
   },

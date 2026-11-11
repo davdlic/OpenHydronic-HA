@@ -13,12 +13,13 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory, UnitOfTime
+from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     ATTR_CYCLES,
+    ATTR_DUTY,
     ATTR_RUNTIME_HOURS,
     DOMAIN,
     MASTER_STATE_DISABLED,
@@ -52,6 +53,8 @@ async def async_setup_entry(
     for zone_id, zone in coordinator.zones.items():
         entities.append(OpenHydronicRuntimeSensor(coordinator, zone_id, zone.name))
         entities.append(OpenHydronicCyclesSensor(coordinator, zone_id, zone.name))
+        if zone.controller:
+            entities.append(OpenHydronicDutySensor(coordinator, zone_id, zone.name))
 
     async_add_entities(entities)
 
@@ -115,6 +118,26 @@ class OpenHydronicCyclesSensor(_ZoneSensor):
     @property
     def native_value(self) -> int | None:
         return self._zone_data.get(ATTR_CYCLES)
+
+
+class OpenHydronicDutySensor(_ZoneSensor):
+    """Share of each cycle the proportional controller wants the valve open."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_suggested_display_precision = 0
+    _attr_icon = "mdi:percent-outline"
+
+    def __init__(
+        self, coordinator: OpenHydronicCoordinator, zone_id: str, zone_name: str
+    ) -> None:
+        super().__init__(coordinator, zone_id, zone_name, "duty")
+        self._attr_name = f"{zone_name} valve duty"
+
+    @property
+    def native_value(self) -> float | None:
+        duty = self._zone_data.get(ATTR_DUTY)
+        return None if duty is None else round(duty * 100)
 
 
 class OpenHydronicMasterStateSensor(OpenHydronicEntity, SensorEntity):

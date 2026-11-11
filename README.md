@@ -34,6 +34,9 @@ boiler or circulator, and watches the sensors for silence.
   board at all.
 - **A thermostat per zone** with configurable hysteresis (±0.3 °C by default) and Comfort, Eco and
   Away presets, exposed as standard `climate` entities.
+- **Proportional control, per zone (experimental).** For underfloor heating a zone can open its valve
+  for a share of every cycle instead of at two temperatures, which keeps a slow floor from
+  overshooting and then going cold. Off by default; see [Proportional mode](#proportional-mode-experimental).
 - **mDNS discovery.** Boards announce themselves as `openhydronic-*` and show up as a discovery
   card. Several boards in one instance are supported and coordinated together.
 - **Flexible master manager**, in three modes: disabled (100% actuators), a physical relay on a
@@ -139,13 +142,13 @@ another ESPHome board, skips all of this and is mapped under Configure as before
 | Menu | What it sets |
 |---|---|
 | **Add the board's relays as zones** | The same one-screen mapping, for the relays no zone uses yet. Offered only while there are some |
-| **Add zone** | Name, relay, temperature sensor, Comfort/Eco/Away setpoints, bypass flag |
+| **Add zone** | Name, relay, temperature sensor, Comfort/Eco/Away setpoints, control mode, floor type, bypass flag |
 | **Master manager** | Disabled, physical relay, or external entity |
 | **Regulation and cycle timings** | Hysteresis, thermal delay, residual purge, min ON, min OFF |
 | **Protections and routines** | Sensor watchdog, air purge duration, anti-seize schedule |
 
 Every zone becomes a `climate.<name>` entity, with `sensor.<name>_runtime` and
-`sensor.<name>_cycles` alongside it.
+`sensor.<name>_cycles` alongside it, and `sensor.<name>_valve_duty` if the zone is proportional.
 
 ### 5. Add the card
 
@@ -165,7 +168,9 @@ Everything is set in the UI. The defaults mirror the firmware:
 
 | Option | Default | Notes |
 |---|---|---|
-| Hysteresis | 0.3 °C | Zone calls below `setpoint - h`, releases above `setpoint + h` |
+| Control mode | Hysteresis | Per zone. Proportional is experimental |
+| Floor type | I don't know | Per zone, proportional only: sets the cycle length, 60 min, or 90 min for a traditional screed |
+| Hysteresis | 0.3 °C | Zone calls below `setpoint - h`, releases above `setpoint + h`. Hysteresis zones only |
 | Master start delay | 180 s | Time for the PTC heads to open before the pump starts |
 | Residual heat purge | 120 s | Pump keeps running after the last zone closes |
 | Minimum ON time | 600 s | Per relay |
@@ -184,6 +189,7 @@ Everything is set in the UI. The defaults mirror the firmware:
 | `climate.<zone>` | climate | Thermostat: setpoint, presets, HVAC action |
 | `sensor.<zone>_runtime` | sensor | Actuator runtime, in hours |
 | `sensor.<zone>_cycles` | sensor | Number of open cycles |
+| `sensor.<zone>_valve_duty` | sensor | Proportional zones only: the share of the cycle the valve is asked to be open, in % |
 | `sensor.<board>_master_state` | sensor | `disabled`, `off`, `waiting`, `on`, `purging` |
 | `sensor.<board>_system_mode` | sensor | `normal`, `summer`, `holiday`, `air_purge`, `anti_seize` |
 | `sensor.<board>_active_zones` | sensor | Zones physically open |
@@ -349,6 +355,57 @@ sensors ──► hysteresis ──► cycle guards ──► zone relays
 The loop re-derives every timer on each pass (15 s, plus state-change events), and the cycle
 timestamps are persisted, so restarting Home Assistant neither leaves the circuit in an undefined
 state nor locks the zones out.
+
+### Proportional mode (experimental)
+
+Hysteresis opens a valve at one temperature and closes it at another. That suits radiators, which
+answer in minutes. A floor answers in hours: when the room reaches the setpoint the slab is still
+hot, so the room overshoots, and then the valve stays shut for hours while the slab cools and the
+room drifts below the setpoint again.
+
+A proportional zone does not wait for a threshold. Every pass it works out a **duty**, the share of
+the time the valve should be open:
+
+- **0.5 for every degree the room is below the setpoint**: 1 °C below asks for half the time, 2 °C
+  or more for all of it, and a room above the setpoint asks for nothing.
+- **A slow correction added to that**, learned over a few hours, for the share of the time this
+  floor needs to hold the setpoint. It is kept across restarts.
+
+The duty is then turned into pulses. A pulse is never shorter than the minimum ON time and the gap
+between two is never shorter than the minimum OFF time, so the actuators are protected exactly as in
+hysteresis mode. The cycle length depends on the floor, set under **Floor type**:
+
+| Floor type | Cycle | For |
+|---|---|---|
+| I don't know | 60 min | Any floor. The safe choice |
+| Traditional screed | 90 min | Pipes embedded in a thick layer of cement |
+
+Switch a zone over under **Configure → Edit zone → Control mode**. The *Hysteresis* option of
+Regulation and cycle timings does not apply to it. Summer mode, Holiday mode, the purge and the
+sensor watchdog work as before: Holiday uses the Away setpoint, a fault holds the valve shut and
+keeps what the zone had learned, and Summer mode or switching the zone off makes it start over.
+`sensor.<zone>_valve_duty` shows the duty in %, which is the useful thing to graph.
+
+Things to know before using it:
+
+- **It works best with a sensor that reports every 0.2 °C or less.** A sensor that only reports
+  after a whole degree gives the controller one reading to work with. For Zigbee2MQTT, see the
+  *Reporting* tab of the device.
+- **The valves open more often.** A hysteresis zone opens a few times a day. A proportional one
+  opens up to about 24 times a day on the 60 minute cycle and 16 on the 90 minute one, and a
+  sensor whose readings jitter by 0.1 °C or more can push that to 30 or beyond. Check that your
+  actuators are rated for it before switching a whole house over; `sensor.<zone>_cycles` counts
+  them.
+- **The water temperature still matters most.** If the tank is much hotter than the floor needs,
+  no controller keeps the room from overshooting, and one that is too cold never reaches the
+  setpoint.
+- **It does not warm a room ahead of a schedule.** A change of setpoint is followed, not
+  anticipated.
+- Try one zone first, and go back to hysteresis under the same menu if it does not suit.
+
+The simulation behind these figures is in `tools/floorsim.py`. It runs the controller above against
+a model of a room, a screed and a buffer tank, next to the hysteresis. The model is illustrative, so
+read the differences between controllers, not the absolute numbers.
 
 ---
 

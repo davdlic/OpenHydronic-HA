@@ -9,6 +9,7 @@ wanted relay states, so they run without a Home Assistant instance.
 
 from __future__ import annotations
 
+import itertools
 import time
 import types
 from datetime import datetime, timedelta, timezone
@@ -27,6 +28,7 @@ from custom_components.openhydronic.coordinator import (
     ZoneRuntime,
     _restore_switch_time,
 )
+from custom_components.openhydronic.proportional import ProportionalController
 
 
 def make_zone(zone_id: str = "z1", **kwargs) -> ZoneRuntime:
@@ -458,3 +460,267 @@ def test_the_relay_is_adopted_on_the_first_read():
 
     assert zone.synced
     assert zone.relay_on and zone.output
+
+
+# ---------------------------------------------------------------------------
+# Proportional zones
+# ---------------------------------------------------------------------------
+def proportional_zone(zone_id: str = "z1", period: float = 3600.0, **kwargs) -> ZoneRuntime:
+    # A flat integral keeps the duty a plain function of the error.
+    controller = ProportionalController(period, ti=1e12)
+    return make_zone(zone_id, controller=controller, **kwargs)
+
+
+def drive(coordinator, start: float, hours: float, step: float = 15.0) -> list[bool]:
+    """Run the demand and the cycle guards as the loop does, without Home Assistant."""
+    states = []
+    for i in range(int(hours * 3600 / step)):
+        now = start + i * step
+        demand = coordinator._evaluate_demand(now)
+        outputs = coordinator._apply_cycle_guards(demand, now)
+        for zone_id, wanted in outputs.items():
+            zone = coordinator.zones[zone_id]
+            if wanted != zone.output:
+                zone.output = wanted
+                zone.last_switch_at = now
+        states.append(coordinator.zones["z1"].output)
+    return states
+
+
+def test_a_proportional_zone_heats_inside_the_hysteresis_band():
+    # 20.8 is above the 20.7 where the band would start; the controller still pulses.
+    zone = proportional_zone(current_temp=20.8)
+    coordinator = make_coordinator([zone])
+
+    states = drive(coordinator, time.monotonic(), 6)
+
+    assert any(states)
+    assert 0.03 <= sum(states) / len(states) <= 0.15
+
+
+def test_a_hysteresis_zone_stays_shut_where_the_proportional_one_pulses():
+    zone = make_zone(current_temp=20.8)
+    coordinator = make_coordinator([zone])
+
+    assert not any(drive(coordinator, time.monotonic(), 6))
+
+
+def test_a_proportional_zone_at_its_target_stays_shut():
+    zone = proportional_zone(current_temp=21.0)
+    coordinator = make_coordinator([zone])
+
+    assert not any(drive(coordinator, time.monotonic(), 6))
+
+
+def test_a_proportional_zone_far_below_its_target_stays_open():
+    zone = proportional_zone(current_temp=17.0)
+    coordinator = make_coordinator([zone])
+
+    states = drive(coordinator, time.monotonic(), 3)
+
+    assert all(states[40:])
+    assert zone.controller.duty == 1.0
+
+
+def test_a_proportional_zone_waits_for_the_minimum_off_time():
+    now = time.monotonic()
+    zone = proportional_zone(current_temp=17.0, last_switch_at=now)
+    coordinator = make_coordinator([zone])
+
+    states = drive(coordinator, now, 0.2)
+
+    assert not any(states[: int(const.DEFAULT_MIN_OFF_TIME / 15) - 1])
+    assert states[-1]
+
+
+def test_a_proportional_zone_follows_the_cycle_guard_options():
+    zone = proportional_zone(current_temp=19.0)
+    coordinator = make_coordinator([zone], **{const.CONF_MIN_RUN_TIME: 1800})
+
+    states = drive(coordinator, time.monotonic(), 8)
+    runs = [len(list(group)) * 15 for key, group in itertools.groupby(states) if key]
+
+    assert runs and min(runs[:-1] or runs) >= 1800
+
+
+def test_a_proportional_zone_regulates_on_the_away_setpoint_in_holiday_mode():
+    zone = proportional_zone(current_temp=17.0)  # below comfort, above away
+    coordinator = make_coordinator([zone])
+    coordinator.holiday_mode = True
+
+    assert not any(drive(coordinator, time.monotonic(), 3))
+
+
+def test_a_proportional_zone_with_a_fault_never_calls_for_heat():
+    zone = proportional_zone(current_temp=17.0, fault=const.FAULT_SENSOR_STALE)
+    coordinator = make_coordinator([zone])
+
+    assert coordinator._evaluate_demand() == {"z1": False}
+    assert zone.controller.duty == 0.0
+
+
+def test_a_fault_keeps_what_the_controller_had_learned():
+    zone = proportional_zone(current_temp=19.0)
+    zone.controller.integral = 0.4
+    zone.fault = const.FAULT_SENSOR_MISSING
+    coordinator = make_coordinator([zone])
+
+    coordinator._evaluate_demand()
+
+    assert zone.controller.integral == 0.4
+
+
+def test_switching_a_proportional_zone_off_makes_it_forget():
+    zone = proportional_zone(current_temp=19.0, hvac_mode=HVAC_OFF)
+    zone.controller.integral = 0.4
+    coordinator = make_coordinator([zone])
+
+    assert coordinator._evaluate_demand() == {"z1": False}
+    assert zone.controller.integral == 0.0
+
+
+def test_summer_mode_makes_a_proportional_zone_forget_too():
+    zone = proportional_zone(current_temp=19.0)
+    zone.controller.integral = 0.4
+    coordinator = make_coordinator([zone])
+    coordinator.summer_mode = True
+
+    assert coordinator._evaluate_demand() == {"z1": False}
+    assert zone.controller.integral == 0.0
+
+
+def test_air_purge_opens_a_proportional_zone_and_pauses_its_controller():
+    now = time.monotonic()
+    zone = proportional_zone(current_temp=30.0, last_switch_at=now)
+    coordinator = make_coordinator([zone])
+    coordinator._air_purge_until = now + 600
+
+    demand = coordinator._evaluate_demand(now)
+
+    assert demand == {"z1": True}
+    assert zone.controller.duty == 0.0
+
+
+def test_an_open_proportional_zone_that_wants_to_stay_open_is_not_locked():
+    now = time.monotonic()
+    zone = proportional_zone(current_temp=17.0, output=True, last_switch_at=now - 60)
+    coordinator = make_coordinator([zone])
+
+    demand = coordinator._evaluate_demand(now)
+
+    assert coordinator._apply_cycle_guards(demand, now) == {"z1": True}
+    assert _locked_until(zone) == 0
+
+
+def test_the_snapshot_carries_the_duty_of_a_proportional_zone_only():
+    proportional = proportional_zone("z1", current_temp=20.0)
+    hysteresis = make_zone("z2", current_temp=20.0)
+    coordinator = make_coordinator([proportional, hysteresis])
+    coordinator._evaluate_demand()
+
+    zones = coordinator._build_snapshot()["zones"]
+
+    assert zones["z1"][const.ATTR_DUTY] == pytest.approx(0.5)
+    assert zones["z2"][const.ATTR_DUTY] is None
+
+
+# -- building the controller from the options -------------------------------
+def build(raw: dict, saved: dict | None = None):
+    return OpenHydronicCoordinator._build_controller(raw, saved or {})
+
+
+def test_a_zone_saved_before_the_choice_existed_keeps_the_hysteresis():
+    assert build({}) is None
+
+
+def test_a_zone_set_to_hysteresis_has_no_controller():
+    assert build({const.CONF_CONTROL_MODE: const.CONTROL_HYSTERESIS}) is None
+
+
+def test_the_floor_type_sets_the_cycle_length():
+    mode = {const.CONF_CONTROL_MODE: const.CONTROL_PROPORTIONAL}
+
+    assert build(mode).period == 3600
+    assert build({**mode, const.CONF_FLOOR_TYPE: const.FLOOR_UNKNOWN}).period == 3600
+    assert build({**mode, const.CONF_FLOOR_TYPE: const.FLOOR_TRADITIONAL}).period == 5400
+
+
+def test_an_unrecognised_floor_type_falls_back_to_the_safe_cycle():
+    raw = {
+        const.CONF_CONTROL_MODE: const.CONTROL_PROPORTIONAL,
+        const.CONF_FLOOR_TYPE: "marble",
+    }
+
+    assert build(raw).period == 3600
+
+
+def test_the_integral_is_restored_from_the_stored_state():
+    raw = {const.CONF_CONTROL_MODE: const.CONTROL_PROPORTIONAL}
+
+    assert build(raw, {"integral": 0.35}).integral == 0.35
+    assert build(raw, {"integral": "garbage"}).integral == 0.0
+    assert build(raw, {"integral": None}).integral == 0.0
+    assert build(raw, {}).integral == 0.0
+
+
+def _raw(zone_id: str, **kwargs) -> dict:
+    return {
+        const.CONF_ZONE_ID: zone_id,
+        const.CONF_ZONE_NAME: zone_id,
+        const.CONF_RELAY_ENTITY: f"switch.{zone_id}",
+        const.CONF_SENSOR_ENTITY: f"sensor.{zone_id}",
+        **kwargs,
+    }
+
+
+def _built(*zones: dict, persisted: dict | None = None) -> OpenHydronicCoordinator:
+    coordinator = make_coordinator([])
+    coordinator.entry.options[const.CONF_ZONES] = list(zones)
+    coordinator._persisted = persisted or {}
+    coordinator._build_zones()
+    return coordinator
+
+
+def test_zones_are_built_with_the_control_their_options_ask_for():
+    coordinator = _built(
+        _raw("old"),
+        _raw("floor", **{const.CONF_CONTROL_MODE: const.CONTROL_PROPORTIONAL}),
+    )
+
+    assert coordinator.zones["old"].controller is None
+    assert coordinator.zones["floor"].controller is not None
+
+
+def test_a_bypass_never_gets_a_controller():
+    coordinator = _built(
+        _raw(
+            "bypass",
+            **{
+                const.CONF_IS_BYPASS: True,
+                const.CONF_CONTROL_MODE: const.CONTROL_PROPORTIONAL,
+            },
+        )
+    )
+
+    assert coordinator.zones["bypass"].controller is None
+
+
+def test_a_rebuilt_zone_picks_up_the_stored_integral():
+    coordinator = _built(
+        _raw("floor", **{const.CONF_CONTROL_MODE: const.CONTROL_PROPORTIONAL}),
+        persisted={"zones": {"floor": {"integral": 0.27}}},
+    )
+
+    assert coordinator.zones["floor"].controller.integral == 0.27
+
+
+def test_the_integral_is_saved_for_proportional_zones_only():
+    proportional = proportional_zone("z1")
+    proportional.controller.integral = 0.31
+    hysteresis = make_zone("z2")
+    coordinator = make_coordinator([proportional, hysteresis])
+
+    saved = coordinator._data_to_save()["zones"]
+
+    assert saved["z1"]["integral"] == 0.31
+    assert "integral" not in saved["z2"]

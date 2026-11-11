@@ -184,7 +184,13 @@
           "comfort_temp": "Setpoint Conforto",
           "eco_temp": "Setpoint Eco",
           "away_temp": "Setpoint Ausente",
-          "is_bypass": "Esta é a válvula de bypass"
+          "is_bypass": "Esta é a válvula de bypass",
+          "control_mode": "Modo de controlo",
+          "floor_type": "Tipo de pavimento (só no proporcional)"
+        },
+        "data_description": {
+          "control_mode": "A histerese abre a válvula quando a divisão está fria e fecha-a quando aquece. O proporcional (experimental) abre-a durante uma parte de cada ciclo, conforme a distância ao setpoint, e serve melhor ao chão radiante. Funciona melhor com um sensor que reporte a cada 0,2 °C ou menos.",
+          "floor_type": "Quão lento é o pavimento. Escolha Betonilha tradicional se os tubos estão dentro de uma camada espessa de cimento. Se não tem a certeza, deixe em Não sei."
         }
       },
       "edit_zone": {
@@ -202,7 +208,13 @@
           "comfort_temp": "Setpoint Conforto",
           "eco_temp": "Setpoint Eco",
           "away_temp": "Setpoint Ausente",
-          "is_bypass": "Esta é a válvula de bypass"
+          "is_bypass": "Esta é a válvula de bypass",
+          "control_mode": "Modo de controlo",
+          "floor_type": "Tipo de pavimento (só no proporcional)"
+        },
+        "data_description": {
+          "control_mode": "A histerese abre a válvula quando a divisão está fria e fecha-a quando aquece. O proporcional (experimental) abre-a durante uma parte de cada ciclo, conforme a distância ao setpoint, e serve melhor ao chão radiante. Funciona melhor com um sensor que reporte a cada 0,2 °C ou menos.",
+          "floor_type": "Quão lento é o pavimento. Escolha Betonilha tradicional se os tubos estão dentro de uma camada espessa de cimento. Se não tem a certeza, deixe em Não sei."
         }
       },
       "remove_zone": {
@@ -366,6 +378,18 @@
         "none": "Nenhum",
         "board": "A placa comanda-o",
         "entity": "Outro interruptor do Home Assistant"
+      }
+    },
+    "control_mode": {
+      "options": {
+        "hysteresis": "Histerese (omissão)",
+        "proportional": "Proporcional (experimental)"
+      }
+    },
+    "floor_type": {
+      "options": {
+        "unknown": "Não sei",
+        "traditional": "Betonilha tradicional (espessa, de cimento)"
       }
     }
   },

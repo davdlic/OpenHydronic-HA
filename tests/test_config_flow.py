@@ -46,6 +46,8 @@ from custom_components.openhydronic import (
 )
 from custom_components.openhydronic import config_flow as flow_module
 from custom_components.openhydronic.const import (
+    CONF_CONTROL_MODE,
+    CONF_FLOOR_TYPE,
     CONF_HOST,
     CONF_MAC,
     CONF_MASTER_CHOICE,
@@ -55,7 +57,11 @@ from custom_components.openhydronic.const import (
     CONF_RELAY_ENTITY,
     CONF_SENSOR_ENTITY,
     CONF_ZONES,
+    CONTROL_HYSTERESIS,
+    CONTROL_PROPORTIONAL,
     DOMAIN,
+    FLOOR_TRADITIONAL,
+    FLOOR_UNKNOWN,
     MASTER_DISABLED,
     MASTER_EXTERNAL,
     MASTER_RELAY,
@@ -533,6 +539,106 @@ async def test_importing_with_no_sensor_asks_for_one(hass):
     result = await hass.config_entries.options.async_configure(result["flow_id"], {})
 
     assert result["errors"] == {"base": "no_zone_selected"}
+
+
+# ---------------------------------------------------------------------------
+# Options: how a zone's valve is controlled
+# ---------------------------------------------------------------------------
+async def open_step(hass, entry, step, user_input=None):
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": step}
+    )
+    if user_input is not None:
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], user_input
+        )
+    return result
+
+
+def choices(result, field):
+    options = fields(result)[field]["selector"]["select"]["options"]
+    return [o if isinstance(o, str) else o["value"] for o in options]
+
+
+NEW_ZONE = {
+    "name": "Study",
+    CONF_RELAY_ENTITY: "switch.study",
+    CONF_SENSOR_ENTITY: "sensor.study",
+}
+
+
+async def test_the_zone_form_offers_both_ways_to_control_the_valve(hass):
+    result = await open_step(hass, our_entry(hass), "add_zone")
+
+    assert choices(result, CONF_CONTROL_MODE) == [CONTROL_HYSTERESIS, CONTROL_PROPORTIONAL]
+    assert choices(result, CONF_FLOOR_TYPE) == [FLOOR_UNKNOWN, FLOOR_TRADITIONAL]
+
+
+async def test_a_zone_added_without_touching_them_keeps_the_hysteresis(hass):
+    result = await open_step(hass, our_entry(hass), "add_zone", NEW_ZONE)
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    zone = result["data"][CONF_ZONES][0]
+    assert zone[CONF_CONTROL_MODE] == CONTROL_HYSTERESIS
+    assert zone[CONF_FLOOR_TYPE] == FLOOR_UNKNOWN
+
+
+async def test_a_zone_can_be_added_as_proportional_on_a_traditional_floor(hass):
+    chosen = {
+        **NEW_ZONE,
+        CONF_CONTROL_MODE: CONTROL_PROPORTIONAL,
+        CONF_FLOOR_TYPE: FLOOR_TRADITIONAL,
+    }
+
+    result = await open_step(hass, our_entry(hass), "add_zone", chosen)
+
+    zone = result["data"][CONF_ZONES][0]
+    assert zone[CONF_CONTROL_MODE] == CONTROL_PROPORTIONAL
+    assert zone[CONF_FLOOR_TYPE] == FLOOR_TRADITIONAL
+
+
+async def test_a_value_the_form_does_not_offer_is_refused(hass):
+    entry = our_entry(hass)
+    result = await open_step(hass, entry, "add_zone")
+
+    with pytest.raises(data_entry_flow.InvalidData):
+        await hass.config_entries.options.async_configure(
+            result["flow_id"], {**NEW_ZONE, CONF_CONTROL_MODE: "turbo"}
+        )
+
+
+async def test_a_zone_saved_before_the_choice_existed_can_be_switched_over(hass):
+    entry = our_entry(hass, zones=("switch.a",))
+    assert CONF_CONTROL_MODE not in entry.options[CONF_ZONES][0]
+
+    result = await open_step(hass, entry, "edit_zone", {"zone_id": "z0"})
+    assert result["step_id"] == "edit_zone_details"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            "name": "Z0",
+            CONF_RELAY_ENTITY: "switch.a",
+            CONF_SENSOR_ENTITY: "sensor.a",
+            CONF_CONTROL_MODE: CONTROL_PROPORTIONAL,
+        },
+    )
+
+    zone = result["data"][CONF_ZONES][0]
+    assert zone[CONF_CONTROL_MODE] == CONTROL_PROPORTIONAL
+    assert zone[CONF_FLOOR_TYPE] == FLOOR_UNKNOWN
+
+
+async def test_saving_an_old_zone_unchanged_keeps_it_on_the_hysteresis(hass):
+    entry = our_entry(hass, zones=("switch.a",))
+
+    result = await open_step(hass, entry, "edit_zone", {"zone_id": "z0"})
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {"name": "Z0", CONF_RELAY_ENTITY: "switch.a", CONF_SENSOR_ENTITY: "sensor.a"},
+    )
+
+    assert result["data"][CONF_ZONES][0][CONF_CONTROL_MODE] == CONTROL_HYSTERESIS
 
 
 # ---------------------------------------------------------------------------

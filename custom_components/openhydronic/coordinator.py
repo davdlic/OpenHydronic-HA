@@ -3,7 +3,7 @@
 # Licensed under the GNU General Public License v3.0 - see LICENSE
 """Control coordinator: owns every decision, entities are thin views on it.
 
-    sensors -> demand (hysteresis) -> cycle guards -> zone outputs
+    sensors -> demand (hysteresis or proportional) -> cycle guards -> zone outputs
                                   \\-> master state machine -> bypass fallback
 
 Timers are re-derived on every pass, so a missed tick only delays the next
@@ -41,6 +41,7 @@ from homeassistant.util import dt as dt_util
 from .const import (
     ATTR_CYCLES,
     ATTR_DEMAND,
+    ATTR_DUTY,
     ATTR_FAULT,
     ATTR_IS_BYPASS,
     ATTR_LOCKED_UNTIL,
@@ -56,7 +57,9 @@ from .const import (
     CONF_ANTI_SEIZE_WEEKDAY,
     CONF_AWAY_TEMP,
     CONF_COMFORT_TEMP,
+    CONF_CONTROL_MODE,
     CONF_ECO_TEMP,
+    CONF_FLOOR_TYPE,
     CONF_HEAT_PURGE_DELAY,
     CONF_HYSTERESIS,
     CONF_IS_BYPASS,
@@ -71,6 +74,7 @@ from .const import (
     CONF_ZONE_ID,
     CONF_ZONE_NAME,
     CONF_ZONES,
+    CONTROL_PROPORTIONAL,
     DEFAULT_AIR_PURGE_DURATION,
     DEFAULT_ANTI_SEIZE_DURATION,
     DEFAULT_ANTI_SEIZE_HOUR,
@@ -78,7 +82,9 @@ from .const import (
     DEFAULT_ANTI_SEIZE_WEEKDAY,
     DEFAULT_AWAY_TEMP,
     DEFAULT_COMFORT_TEMP,
+    DEFAULT_CONTROL_MODE,
     DEFAULT_ECO_TEMP,
+    DEFAULT_FLOOR_TYPE,
     DEFAULT_HEAT_PURGE_DELAY,
     DEFAULT_HYSTERESIS,
     DEFAULT_MASTER_START_DELAY,
@@ -90,6 +96,8 @@ from .const import (
     FAULT_RELAY_MISSING,
     FAULT_SENSOR_MISSING,
     FAULT_SENSOR_STALE,
+    FLOOR_PERIOD,
+    FLOOR_UNKNOWN,
     MASTER_DISABLED,
     MASTER_EXTERNAL,
     MASTER_RELAY,
@@ -112,6 +120,7 @@ from .const import (
     VALVE_OPENING,
 )
 from .firmware import FirmwareBridge
+from .proportional import ProportionalController
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -188,7 +197,8 @@ class ZoneRuntime:
     relay_on: bool = False
     fault: str | None = None
 
-    # Control
+    # Control. Without a controller the zone runs on the hysteresis band.
+    controller: ProportionalController | None = None
     demand: bool = False
     output: bool = False
     last_switch_at: float = field(
@@ -350,12 +360,16 @@ class OpenHydronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for raw in self.entry.options.get(CONF_ZONES, []):
             zone_id = raw.get(CONF_ZONE_ID) or uuid.uuid4().hex[:8]
             saved = stored_zones.get(zone_id, {})
+            is_bypass = bool(raw.get(CONF_IS_BYPASS, False))
             zones[zone_id] = ZoneRuntime(
                 zone_id=zone_id,
                 name=raw.get(CONF_ZONE_NAME, f"Zone {zone_id}"),
                 relay_entity=raw[CONF_RELAY_ENTITY],
                 sensor_entity=raw.get(CONF_SENSOR_ENTITY),
-                is_bypass=bool(raw.get(CONF_IS_BYPASS, False)),
+                is_bypass=is_bypass,
+                controller=(
+                    None if is_bypass else self._build_controller(raw, saved)
+                ),
                 comfort_temp=float(raw.get(CONF_COMFORT_TEMP, DEFAULT_COMFORT_TEMP)),
                 eco_temp=float(raw.get(CONF_ECO_TEMP, DEFAULT_ECO_TEMP)),
                 away_temp=float(raw.get(CONF_AWAY_TEMP, DEFAULT_AWAY_TEMP)),
@@ -368,6 +382,22 @@ class OpenHydronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
 
         self.zones = zones
+
+    @staticmethod
+    def _build_controller(
+        raw: dict[str, Any], saved: dict[str, Any]
+    ) -> ProportionalController | None:
+        """The proportional controller of a zone, or None to keep the hysteresis."""
+        if raw.get(CONF_CONTROL_MODE, DEFAULT_CONTROL_MODE) != CONTROL_PROPORTIONAL:
+            return None
+        period = FLOOR_PERIOD.get(
+            raw.get(CONF_FLOOR_TYPE, DEFAULT_FLOOR_TYPE), FLOOR_PERIOD[FLOOR_UNKNOWN]
+        )
+        try:
+            integral = float(saved.get("integral", 0.0))
+        except (TypeError, ValueError):
+            integral = 0.0
+        return ProportionalController(period, integral=integral)
 
     def _register_listeners(self) -> None:
         """Local-push: react to relay/sensor changes instead of only polling."""
@@ -439,7 +469,7 @@ class OpenHydronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._read_zone_inputs(zone)
 
         self._accumulate_metrics(now)
-        demand = self._evaluate_demand()
+        demand = self._evaluate_demand(now)
         outputs = self._apply_cycle_guards(demand, now)
         master_output = self._resolve_master(self._flowing_demand(demand, outputs), now)
         outputs = self._apply_bypass(outputs, master_output)
@@ -508,8 +538,10 @@ class OpenHydronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         zone.sensor_age = (dt_util.utcnow() - last_seen).total_seconds()
         return FAULT_SENSOR_STALE if zone.sensor_age > self.sensor_timeout else None
 
-    def _evaluate_demand(self) -> dict[str, bool]:
-        """Hysteresis band, plus every override that can veto heat."""
+    def _evaluate_demand(self, now: float | None = None) -> dict[str, bool]:
+        """Hysteresis or proportional demand, plus every override that can veto heat."""
+        if now is None:
+            now = time.monotonic()
         hyst = self.hysteresis
         mode = self.system_mode
         demand: dict[str, bool] = {}
@@ -518,21 +550,37 @@ class OpenHydronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if mode in (SYSTEM_MODE_AIR_PURGE, SYSTEM_MODE_ANTI_SEIZE):
                 zone.demand = True
                 demand[zone_id] = True
+                if zone.controller:
+                    zone.controller.hold()
                 continue
 
             if mode == SYSTEM_MODE_SUMMER or zone.hvac_mode == HVAC_OFF:
                 zone.demand = False
                 demand[zone_id] = False
+                if zone.controller:
+                    # Switched off on purpose: what it had learned goes stale.
+                    zone.controller.reset()
                 continue
 
             if zone.fault is not None or zone.current_temp is None or zone.is_bypass:
                 # Never heat what we cannot measure; a bypass makes no demand.
                 zone.demand = False
                 demand[zone_id] = False
+                if zone.controller:
+                    zone.controller.hold()
                 continue
 
             target = zone.away_temp if mode == SYSTEM_MODE_HOLIDAY else zone.target_temp
-            if zone.demand:
+            if zone.controller:
+                zone.demand = zone.controller.update(
+                    error=target - zone.current_temp,
+                    now=now,
+                    is_open=zone.output,
+                    since_switch=now - zone.last_switch_at,
+                    min_run=self.min_run_time,
+                    min_off=self.min_off_time,
+                )
+            elif zone.demand:
                 zone.demand = zone.current_temp < target + hyst
             else:
                 zone.demand = zone.current_temp < target - hyst
@@ -767,6 +815,7 @@ class OpenHydronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "hvac_mode": zone.hvac_mode,
                 "preset": zone.preset,
                 ATTR_DEMAND: zone.demand,
+                ATTR_DUTY: round(zone.controller.duty, 3) if zone.controller else None,
                 "output": zone.output,
                 "relay_on": zone.relay_on,
                 ATTR_VALVE_STATE: self._valve_state(zone),
@@ -814,6 +863,12 @@ class OpenHydronicCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     # Wall clock, so the cycle guards survive a restart.
                     "last_switch_epoch": round(
                         time.time() - (time.monotonic() - zone.last_switch_at), 1
+                    ),
+                    # What the floor needs at steady state takes hours to learn.
+                    **(
+                        {"integral": round(zone.controller.integral, 4)}
+                        if zone.controller
+                        else {}
                     ),
                 }
                 for zone_id, zone in self.zones.items()

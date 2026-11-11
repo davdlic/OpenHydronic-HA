@@ -19,7 +19,7 @@ DOMAIN: Final = "openhydronic"
 MANUFACTURER: Final = "OpenHydronic"
 MODEL: Final = "ESP32 Hydronic Controller"
 # Kept in step with manifest.json by the release workflow.
-INTEGRATION_VERSION: Final = "1.2.5"
+INTEGRATION_VERSION: Final = "1.3.0"
 
 PLATFORMS: Final[list[str]] = ["climate", "sensor", "switch"]
 
@@ -59,6 +59,8 @@ CONF_IS_BYPASS: Final = "is_bypass"
 CONF_COMFORT_TEMP: Final = "comfort_temp"
 CONF_ECO_TEMP: Final = "eco_temp"
 CONF_AWAY_TEMP: Final = "away_temp"
+CONF_CONTROL_MODE: Final = "control_mode"
+CONF_FLOOR_TYPE: Final = "floor_type"
 
 CONF_MASTER_MODE: Final = "master_mode"
 CONF_MASTER_ENTITY: Final = "master_entity"
@@ -91,6 +93,19 @@ MASTER_MODES: Final = [MASTER_DISABLED, MASTER_RELAY, MASTER_EXTERNAL]
 MASTER_CHOICE_NONE: Final = "none"
 MASTER_CHOICE_BOARD: Final = "board"
 MASTER_CHOICE_ENTITY: Final = "entity"
+
+# How a zone decides when its valve opens. A zone saved before the choice
+# existed has no key and keeps the hysteresis.
+CONTROL_HYSTERESIS: Final = "hysteresis"
+CONTROL_PROPORTIONAL: Final = "proportional"
+CONTROL_MODES: Final = [CONTROL_HYSTERESIS, CONTROL_PROPORTIONAL]
+
+# Slower floors want longer cycles. "unknown" is safe on any floor.
+FLOOR_UNKNOWN: Final = "unknown"
+FLOOR_TRADITIONAL: Final = "traditional"
+FLOOR_TYPES: Final = [FLOOR_UNKNOWN, FLOOR_TRADITIONAL]
+# Proportional cycle length in seconds, per floor type.
+FLOOR_PERIOD: Final = {FLOOR_UNKNOWN: 3600, FLOOR_TRADITIONAL: 5400}
 
 # Master state machine (exposed as a sensor + consumed by the Lovelace card)
 MASTER_STATE_OFF: Final = "off"
@@ -128,7 +143,11 @@ FAULT_RELAY_MISSING: Final = "relay_missing"
 # Defaults (seconds unless noted). These mirror the firmware protections so the
 # hydraulic circuit stays safe even if the HA side is the one in command.
 # --------------------------------------------------------------------------
+DEFAULT_CONTROL_MODE: Final = CONTROL_HYSTERESIS
+DEFAULT_FLOOR_TYPE: Final = FLOOR_UNKNOWN
 DEFAULT_HYSTERESIS: Final = 0.3            # +/- 0.3 degC
+PROPORTIONAL_KP: Final = 0.5               # valve duty per degC of error
+PROPORTIONAL_TI: Final = 4 * 3600          # s, integral time
 DEFAULT_MASTER_START_DELAY: Final = 180    # 3 min actuator opening time
 DEFAULT_HEAT_PURGE_DELAY: Final = 120      # 2 min residual heat purge
 DEFAULT_MIN_RUN_TIME: Final = 600          # 10 min minimum ON (PTC protection)
@@ -190,6 +209,7 @@ ATTR_RUNTIME_HOURS: Final = "runtime_hours"
 ATTR_CYCLES: Final = "cycles"
 ATTR_FAULT: Final = "fault"
 ATTR_DEMAND: Final = "demand"
+ATTR_DUTY: Final = "duty"
 ATTR_LOCKED_UNTIL: Final = "locked_until"
 ATTR_SYSTEM_MODE: Final = "system_mode"
 ATTR_MASTER_STATE: Final = "master_state"
